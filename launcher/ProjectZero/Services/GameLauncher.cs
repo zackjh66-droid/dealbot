@@ -1,9 +1,9 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Data.Json;
 using Windows.Storage;
 using Windows.System;
-using Newtonsoft.Json;
 using ProjectZero.Models;
 
 namespace ProjectZero.Services
@@ -33,19 +33,29 @@ namespace ProjectZero.Services
         {
             try
             {
-                var handoff = JsonConvert.SerializeObject(new
+                var handoff = new JsonObject
                 {
-                    ticket = ticket.Ticket,
-                    account = ticket.Account != null ? ticket.Account.Username : null,
-                    build = ticket.Build,
-                    launchUri = uri.ToString(),
-                    issuedAt = DateTimeOffset.UtcNow
-                }, Formatting.Indented);
+                    ["ticket"] = JsonValue.CreateStringValue(ticket.Ticket ?? string.Empty),
+                    ["account"] = JsonValue.CreateStringValue(ticket.Account != null ? ticket.Account.Username : string.Empty),
+                    ["launchUri"] = JsonValue.CreateStringValue(uri.ToString()),
+                    ["issuedAt"] = JsonValue.CreateStringValue(DateTimeOffset.UtcNow.ToString("o"))
+                };
+
+                if (ticket.Build != null)
+                {
+                    handoff["build"] = new JsonObject
+                    {
+                        ["season"] = JsonValue.CreateNumberValue(ticket.Build.Season),
+                        ["version"] = JsonValue.CreateStringValue(ticket.Build.Version ?? string.Empty),
+                        ["cl"] = JsonValue.CreateStringValue(ticket.Build.Cl ?? string.Empty),
+                        ["label"] = JsonValue.CreateStringValue(ticket.Build.BuildLabel ?? string.Empty)
+                    };
+                }
 
                 var file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
                     "handoff.json",
                     CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteTextAsync(file, handoff);
+                await FileIO.WriteTextAsync(file, handoff.Stringify());
             }
             catch
             {

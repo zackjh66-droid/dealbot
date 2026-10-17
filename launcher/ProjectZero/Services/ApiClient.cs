@@ -4,8 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Windows.Data.Json;
 using ProjectZero.Models;
 
 namespace ProjectZero.Services
@@ -31,60 +30,56 @@ namespace ProjectZero.Services
 
         public static async Task<LinkStartResult> StartLinkAsync()
         {
-            var body = new
+            var body = new JsonObject
             {
-                deviceName = AppConfig.DeviceName,
-                platform = "xbox",
-                appVersion = AppConfig.AppVersion,
-                consoleId = Windows.System.Profile.AnalyticsInfo.VersionInfo.DeviceFamily
+                ["deviceName"] = JsonValue.CreateStringValue(AppConfig.DeviceName),
+                ["platform"] = JsonValue.CreateStringValue("xbox"),
+                ["appVersion"] = JsonValue.CreateStringValue(AppConfig.AppVersion)
             };
 
             var jo = await PostJsonAsync("/api/link/start", body, null);
             return new LinkStartResult
             {
-                Code = (string)jo["code"],
-                PollToken = (string)jo["pollToken"],
-                LinkUrl = (string)jo["linkUrl"],
-                ExpiresAt = (string)jo["expiresAt"]
+                Code = GetString(jo, "code"),
+                PollToken = GetString(jo, "pollToken"),
+                LinkUrl = GetString(jo, "linkUrl"),
+                ExpiresAt = GetString(jo, "expiresAt")
             };
         }
 
         public static async Task<LinkPollResult> PollAsync(string code, string pollToken)
         {
-            var jo = await PostJsonAsync("/api/link/poll", new { code, pollToken }, null);
+            var body = new JsonObject
+            {
+                ["code"] = JsonValue.CreateStringValue(code),
+                ["pollToken"] = JsonValue.CreateStringValue(pollToken)
+            };
+
+            var jo = await PostJsonAsync("/api/link/poll", body, null);
             var result = new LinkPollResult
             {
-                Status = (string)jo["status"],
-                SessionToken = (string)jo["sessionToken"],
+                Status = GetString(jo, "status"),
+                SessionToken = GetString(jo, "sessionToken"),
                 Builds = new List<BuildInfo>()
             };
 
-            var account = jo["account"] as JObject;
+            var account = GetObject(jo, "account");
             if (account != null)
             {
                 result.Account = new AccountInfo
                 {
-                    Id = (string)account["id"],
-                    Username = (string)account["username"],
-                    AccountNo = account["accountNo"] != null ? (long)account["accountNo"] : 0
+                    Id = GetString(account, "id"),
+                    Username = GetString(account, "username"),
+                    AccountNo = GetLong(account, "accountNo")
                 };
             }
 
-            var builds = jo["builds"] as JArray;
+            var builds = GetArray(jo, "builds");
             if (builds != null)
             {
                 foreach (var item in builds)
                 {
-                    result.Builds.Add(new BuildInfo
-                    {
-                        Season = item["season"] != null ? (int)item["season"] : 0,
-                        Channel = (string)item["channel"],
-                        Version = (string)item["version"],
-                        Cl = (string)item["cl"],
-                        BuildLabel = (string)item["buildLabel"],
-                        LaunchUri = (string)item["launchUri"],
-                        PackageFamilyName = (string)item["packageFamilyName"]
-                    });
+                    result.Builds.Add(ReadBuild(item.GetObject()));
                 }
             }
 
@@ -93,49 +88,97 @@ namespace ProjectZero.Services
 
         public static async Task<TicketResult> GetTicketAsync(string consoleToken)
         {
-            var jo = await PostJsonAsync("/api/game/ticket", new { }, consoleToken);
+            var jo = await PostJsonAsync("/api/game/ticket", new JsonObject(), consoleToken);
             var result = new TicketResult
             {
-                Ticket = (string)jo["ticket"],
-                ExpiresAt = (string)jo["expiresAt"]
+                Ticket = GetString(jo, "ticket"),
+                ExpiresAt = GetString(jo, "expiresAt")
             };
 
-            var account = jo["account"] as JObject;
+            var account = GetObject(jo, "account");
             if (account != null)
             {
                 result.Account = new AccountInfo
                 {
-                    Id = (string)account["id"],
-                    Username = (string)account["username"],
-                    AccountNo = account["accountNo"] != null ? (long)account["accountNo"] : 0
+                    Id = GetString(account, "id"),
+                    Username = GetString(account, "username"),
+                    AccountNo = GetLong(account, "accountNo")
                 };
             }
 
-            var build = jo["build"] as JObject;
+            var build = GetObject(jo, "build");
             if (build != null)
             {
-                result.Build = new BuildInfo
-                {
-                    Season = build["season"] != null ? (int)build["season"] : 0,
-                    Channel = (string)build["channel"],
-                    Version = (string)build["version"],
-                    Cl = (string)build["cl"],
-                    BuildLabel = (string)build["buildLabel"],
-                    LaunchUri = (string)build["launchUri"],
-                    PackageFamilyName = (string)build["packageFamilyName"]
-                };
+                result.Build = ReadBuild(build);
             }
 
             return result;
         }
 
-        private static async Task<JObject> PostJsonAsync(string path, object payload, string bearer)
+        private static BuildInfo ReadBuild(JsonObject item)
+        {
+            return new BuildInfo
+            {
+                Season = (int)GetLong(item, "season"),
+                Channel = GetString(item, "channel"),
+                Version = GetString(item, "version"),
+                Cl = GetString(item, "cl"),
+                BuildLabel = GetString(item, "buildLabel"),
+                LaunchUri = GetString(item, "launchUri"),
+                PackageFamilyName = GetString(item, "packageFamilyName")
+            };
+        }
+
+        private static string GetString(JsonObject jo, string key)
+        {
+            JsonValue value;
+            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.String)
+            {
+                return value.GetString();
+            }
+
+            return null;
+        }
+
+        private static long GetLong(JsonObject jo, string key)
+        {
+            JsonValue value;
+            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Number)
+            {
+                return (long)value.GetNumber();
+            }
+
+            return 0;
+        }
+
+        private static JsonObject GetObject(JsonObject jo, string key)
+        {
+            JsonValue value;
+            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Object)
+            {
+                return value.GetObject();
+            }
+
+            return null;
+        }
+
+        private static JsonArray GetArray(JsonObject jo, string key)
+        {
+            JsonValue value;
+            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Array)
+            {
+                return value.GetArray();
+            }
+
+            return null;
+        }
+
+        private static async Task<JsonObject> PostJsonAsync(string path, JsonObject payload, string bearer)
         {
             var url = AppConfig.BaseUrl + path;
-            var json = JsonConvert.SerializeObject(payload);
             using (var request = new HttpRequestMessage(HttpMethod.Post, url))
             {
-                request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                request.Content = new StringContent(payload.Stringify(), Encoding.UTF8, "application/json");
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 if (!string.IsNullOrEmpty(bearer))
                 {
@@ -150,7 +193,7 @@ namespace ProjectZero.Services
                         throw new ApiException("HTTP " + (int)response.StatusCode + " " + text);
                     }
 
-                    return JObject.Parse(text);
+                    return JsonObject.Parse(text);
                 }
             }
         }
