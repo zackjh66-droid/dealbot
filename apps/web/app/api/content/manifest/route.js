@@ -11,7 +11,7 @@ export async function GET(req) {
   const url = process.env.SEASON7_CONTENT_URL || '';
   const sha256 = (process.env.SEASON7_CONTENT_SHA256 || '').toLowerCase();
   const size = Number(process.env.SEASON7_CONTENT_SIZE || 0);
-  const fileName = process.env.SEASON7_CONTENT_FILENAME || 'season7-content.pkg';
+  const fileName = process.env.SEASON7_CONTENT_FILENAME || 'windows-7.00.rar';
 
   if (!url) {
     return json({
