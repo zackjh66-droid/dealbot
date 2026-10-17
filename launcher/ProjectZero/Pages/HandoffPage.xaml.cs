@@ -29,17 +29,29 @@ namespace ProjectZero.Pages
                 return;
             }
 
+            try
+            {
+                var manifest = await ApiClient.GetContentManifestAsync(SessionStore.ConsoleToken);
+                if (manifest == null || !manifest.Available || !await ContentStore.IsInstalledAsync(manifest))
+                {
+                    Frame.Navigate(typeof(DownloadPage));
+                    return;
+                }
+            }
+            catch
+            {
+                Frame.Navigate(typeof(DownloadPage));
+                return;
+            }
+
             UsernameText.Text = (SessionStore.Username ?? "player").ToUpperInvariant();
-            AccountLineText.Text = "ACCOUNT · " + (SessionStore.BuildLabel ?? "SEASON 6 / 7");
+            AccountLineText.Text = "ACCOUNT · " + (SessionStore.BuildLabel ?? "SEASON 7");
             await RunHandoffAsync();
         }
 
         private async Task RunHandoffAsync()
         {
-            if (_running)
-            {
-                return;
-            }
+            if (_running) return;
 
             _running = true;
             ResetUi();
@@ -130,8 +142,8 @@ namespace ProjectZero.Pages
             ClientStateText.Text = "CLIENT PACKAGE NOT INSTALLED";
             ClientStateText.Foreground = (Brush)Application.Current.Resources["PzGoldBrush"];
             ClientHelpText.Text =
-                "Signed Season 6 or 7 UWP client package was not found. Install the client package for this " +
-                "console, then retry. The launcher will hand off automatically once the protocol is registered.";
+                "The Project Zero Xbox client package is not installed. Install the signed client package for this " +
+                "console, then retry. Verified Season 7 content will remain stored locally.";
             ClientHelpText.Visibility = Visibility.Visible;
             RetryButton.Visibility = Visibility.Visible;
             StatusText.Text = "AWAITING CLIENT PACKAGE";
