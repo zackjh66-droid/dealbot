@@ -28,6 +28,9 @@ Without the certificate in *Trusted People* on the console, Dev Mode rejects the
 
 ## 3. Sideload the launcher
 
+If the release includes `Microsoft.NET.CoreRuntime.2.2.appx`, install that dependency first. Consoles that
+already ship the .NET Core UWP runtime can skip it.
+
 ```powershell
 # From Device Portal the easy way: Apps → Package manager → upload the .msixbundle
 # From PowerShell with the console exposed:

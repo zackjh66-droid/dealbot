@@ -135,14 +135,20 @@ jobs:
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $bundle) { throw 'No package produced' }
           $cer = Get-ChildItem -Recurse AppPackages -Filter ProjectZero.cer | Select-Object -First 1
+          $runtime = Get-ChildItem -Recurse AppPackages -Filter 'Microsoft.NET.CoreRuntime*.appx' | Select-Object -First 1
           gh release delete launcher-latest --yes --cleanup-tag 2>$null | Out-Null
           $notes = @"
           Automated Dev Mode build of the Project Zero launcher.
 
-          Install the .cer from the assets first (Trusted People + Trusted Root), then sideload the .msixbundle.
-          Package identity ProjectZero.Launcher, publisher CN=Project Zero, x64, version 1.0.0.0.
+          1. Install ProjectZero.cer (Trusted People + Trusted Root).
+          2. If the device does not already have it, install Microsoft.NET.CoreRuntime.*.appx.
+          3. Sideload ProjectZero_1.0.0.0_x64.msixbundle.
+
+          Identity ProjectZero.Launcher, publisher CN=Project Zero, x64, version 1.0.0.0.
           "@
-          gh release create launcher-latest "$($bundle.FullName)" "$($cer.FullName)" `
+          $files = @($bundle.FullName, $cer.FullName)
+          if ($runtime) { $files += $runtime.FullName }
+          gh release create launcher-latest $files `
             --title 'Project Zero launcher (latest)' `
             --notes $notes `
             --prerelease
