@@ -60,12 +60,13 @@ jobs:
           jq -e '.status == "linked"' <<<"$POLLED" >/dev/null
           SESSION=$(jq -er .sessionToken <<<"$POLLED")
           jq -e '.builds | length > 0' <<<"$POLLED" >/dev/null
+          jq -e '.builds[0].buildLabel != null and .builds[0].launchUri != null' <<<"$POLLED" >/dev/null
 
           TICKET=$(curl -fsS -X POST "$BASE/api/game/ticket" \
             -H "authorization: Bearer $SESSION" \
             -H 'content-type: application/json' -d '{}')
           jq -e '.ticket | length > 20' <<<"$TICKET" >/dev/null
-          jq -e '.build.season >= 6' <<<"$TICKET" >/dev/null
+          jq -e '.build.season >= 6 and .build.buildLabel != null' <<<"$TICKET" >/dev/null
 
           ME=$(curl -fsS "$BASE/api/me" -H "authorization: Bearer $SESSION")
           jq -e --arg u "$USER" '.account.username == $u' <<<"$ME" >/dev/null

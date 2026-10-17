@@ -48,12 +48,22 @@ export async function POST(req) {
       .eq('id', link.device_id);
     await db().from('accounts').update({ last_seen_at: new Date().toISOString() }).eq('id', account.id);
 
-    const { data: builds } = await db()
+    const { data: buildRows } = await db()
       .from('builds')
       .select('season, channel, version, cl, build_label, launch_uri, package_family_name')
       .eq('active', true)
       .order('sort_order', { ascending: true })
       .limit(12);
+
+    const builds = (buildRows || []).map((row) => ({
+      season: row.season,
+      channel: row.channel,
+      version: row.version,
+      cl: row.cl,
+      buildLabel: row.build_label,
+      launchUri: row.launch_uri,
+      packageFamilyName: row.package_family_name
+    }));
 
     await audit('link.claimed', {
       accountId: account.id,
@@ -71,7 +81,7 @@ export async function POST(req) {
       },
       sessionToken: consoleToken,
       sessionKind: 'console',
-      builds: builds || []
+      builds
     });
   }
 
