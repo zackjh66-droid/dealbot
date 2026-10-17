@@ -67,12 +67,11 @@ export async function POST(request) {
           throw new Error('Invalid file size or SHA-256');
         }
 
-        if (await exists(expectedPathname)) {
-          throw new Error('This file is already uploaded and locked. Existing content cannot be replaced.');
-        }
-
+        // Files are mutable only while a build is still being assembled. This makes interrupted
+        // browser uploads retryable. The final manifest above permanently locks the build.
         return {
           addRandomSuffix: false,
+          allowOverwrite: true,
           tokenPayload: JSON.stringify({ relativePath, size, sha256 })
         };
       },
@@ -90,6 +89,7 @@ export async function POST(request) {
 
     return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
+    console.error('content token request failed', error);
     return Response.json(
       { error: error?.message || 'Upload failed' },
       { status: 400, headers: { 'Cache-Control': 'no-store' } }
