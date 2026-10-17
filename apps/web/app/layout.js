@@ -1,4 +1,5 @@
 import './globals.css';
+import './theme.css';
 import './home.css';
 import Link from 'next/link';
 import Brand from '@/components/Brand';
@@ -26,7 +27,7 @@ export default function RootLayout({ children }) {
                 <Brand />
               </Link>
               <nav className="nav-links" aria-label="Primary navigation">
-                <Link href="/builds">Builds</Link>
+                <Link href="/downloads">Downloads</Link>
                 <Link href="/preview/launcher">Launcher</Link>
                 <Link href="/account">Account</Link>
                 <Link href="/link" className="nav-cta">Link console</Link>
@@ -47,7 +48,7 @@ export default function RootLayout({ children }) {
                 </p>
               </div>
               <div className="footer-links">
-                <Link href="/builds">Builds</Link>
+                <Link href="/downloads">Downloads</Link>
                 <Link href="/preview/launcher">Launcher</Link>
                 <Link href="/link">Link</Link>
                 <a href="/api/health">Status</a>
