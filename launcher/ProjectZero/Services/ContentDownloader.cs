@@ -17,14 +17,15 @@ namespace ProjectZero.Services
 
     public static class ContentDownloader
     {
+        public const string SharedFolderName = "ProjectZeroContent";
+
         public static async Task<StorageFile> DownloadAsync(
             Uri source,
             string fileName,
             IProgress<DownloadSnapshot> progress,
             CancellationToken cancellationToken)
         {
-            var folder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(
-                "GameContent", CreationCollisionOption.OpenIfExists);
+            var folder = ApplicationData.Current.GetPublisherCacheFolder(SharedFolderName);
 
             var current = await BackgroundDownloader.GetCurrentDownloadsAsync();
             var existing = current.FirstOrDefault(op =>
