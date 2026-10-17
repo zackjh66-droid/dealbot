@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ProjectZero.Pages.DownloadPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ProjectZero.Controls"
+    Background="{StaticResource PzBackground}"
+    NavigationCacheMode="Disabled">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="92" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="84" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="64,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="14">
+                <controls:BrandMark Width="36" Height="36" />
+                <StackPanel Spacing="3" VerticalAlignment="Center">
+                    <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="18" CharacterSpacing="260" />
+                    <TextBlock Text="CONTENT DELIVERY" Style="{StaticResource PzMono}" FontSize="9" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="10">
+                <Ellipse x:Name="StateDot" Width="7" Height="7" Fill="{StaticResource PzGoldBrush}" VerticalAlignment="Center" />
+                <TextBlock x:Name="TopStateText" Text="PREPARING" Style="{StaticResource PzMono}" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <Border Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Bottom" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="64,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.4*" />
+                <ColumnDefinition Width="0.7*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Center" MaxWidth="760" HorizontalAlignment="Left">
+                <TextBlock Text="SEASON 7 CONTENT" Style="{StaticResource PzEyebrow}" />
+                <TextBlock x:Name="BuildTitle" Text="FORTNITE 7.00"
+                           Style="{StaticResource PzDisplay}" FontSize="62" Margin="0,8,0,0" />
+                <TextBlock x:Name="BuildSubtitle" Text="CL-4629139 · XBOX CONTENT PACKAGE"
+                           Style="{StaticResource PzMono}" FontSize="13" />
+
+                <TextBlock x:Name="DownloadStateText" Text="CHECKING CONTENT MANIFEST"
+                           Style="{StaticResource PzMono}" FontSize="13" Margin="0,44,0,0" />
+
+                <Grid Height="10" Width="700" HorizontalAlignment="Left" Margin="0,18,0,0" Background="#FF171226">
+                    <Rectangle x:Name="DownloadProgressFill" Width="0" Height="10" HorizontalAlignment="Left"
+                               Fill="{StaticResource PzBarGradient}" />
+                </Grid>
+
+                <Grid Width="700" HorizontalAlignment="Left" Margin="0,14,0,0">
+                    <TextBlock x:Name="PercentText" Text="0%" Style="{StaticResource PzDisplay}" FontSize="28" />
+                    <TextBlock x:Name="BytesText" Text="0 MB / —"
+                               Style="{StaticResource PzMono}" FontSize="11"
+                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+
+                <TextBlock x:Name="DetailText"
+                           Text="The launcher will verify the package before continuing."
+                           Style="{StaticResource PzMono}" FontSize="11"
+                           TextWrapping="Wrap" MaxWidth="700" HorizontalAlignment="Left"
+                           Margin="0,22,0,0" LineHeight="20" />
+
+                <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,28,0,0">
+                    <Button x:Name="RetryButton" Content="RETRY DOWNLOAD" Visibility="Collapsed"
+                            Style="{StaticResource PzButton}" Click="Retry_Click" />
+                    <Button x:Name="ContinueButton" Content="CONTINUE" Visibility="Collapsed"
+                            Style="{StaticResource PzButton}" Click="Continue_Click" />
+                    <Button x:Name="CancelButton" Content="CANCEL" Visibility="Collapsed"
+                            Style="{StaticResource PzGhostButton}" Click="Cancel_Click" />
+                </StackPanel>
+            </StackPanel>
+
+            <Border Grid.Column="1" Style="{StaticResource PzPanel}" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="PACKAGE DETAILS" Style="{StaticResource PzEyebrow}" />
+                    <Grid Margin="0,24,0,0">
+                        <TextBlock Text="VERSION" Style="{StaticResource PzMono}" FontSize="10" />
+                        <TextBlock x:Name="VersionValue" Text="7.00" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                    <Grid>
+                        <TextBlock Text="CHANGE LIST" Style="{StaticResource PzMono}" FontSize="10" />
+                        <TextBlock x:Name="ClValue" Text="4629139" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                    <Grid>
+                        <TextBlock Text="FILE" Style="{StaticResource PzMono}" FontSize="10" />
+                        <TextBlock x:Name="FileValue" Text="—" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="230" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                    <Grid>
+                        <TextBlock Text="INTEGRITY" Style="{StaticResource PzMono}" FontSize="10" />
+                        <TextBlock x:Name="IntegrityValue" Text="PENDING" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="{StaticResource PzGoldBrush}" HorizontalAlignment="Right" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="64,0">
+            <Border Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Top" />
+            <TextBlock Text="PROJECT ZERO · XBOX DEV MODE" Style="{StaticResource PzMono}"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="BACKGROUND TRANSFER · SHA-256 VERIFY"
+                       Style="{StaticResource PzMono}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+    </Grid>
+</Page>
