@@ -1,4 +1,4 @@
-import { issueSignedToken, list, presignUrl } from '@vercel/blob';
+import { get, issueSignedToken, presignUrl } from '@vercel/blob';
 import { accountFromRequest } from '@/lib/session';
 import { json } from '@/lib/security';
 
@@ -6,48 +6,39 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PREFIX = 'season7/7.00/4629139/';
+const FINAL_MANIFEST = PREFIX + '.projectzero-manifest.json';
 const SIGNED_URL_LIFETIME_MS = 6 * 60 * 60 * 1000;
 
-async function listSeason7Files() {
-  const blobs = [];
-  let cursor;
-  do {
-    const page = await list({ prefix: PREFIX, limit: 1000, cursor });
-    blobs.push(...(page.blobs || []));
-    cursor = page.cursor || undefined;
-  } while (cursor);
-  return blobs.filter((blob) => blob.pathname && blob.pathname.startsWith(PREFIX));
+async function loadFinalManifest() {
+  const result = await get(FINAL_MANIFEST, { access: 'private' });
+  if (!result || result.statusCode !== 200 || !result.stream) return null;
+  const text = await new Response(result.stream).text();
+  const manifest = JSON.parse(text);
+  if (!manifest || manifest.locked !== true || !Array.isArray(manifest.files) || !manifest.files.length) return null;
+  return manifest;
 }
 
-async function signedFiles(blobs) {
-  if (!blobs.length) return [];
-
+async function signedFiles(manifestFiles) {
   const validUntil = Date.now() + SIGNED_URL_LIFETIME_MS;
-  // One short-lived delegation token is used to sign every GET URL locally. The full Blob
-  // read-write token is never sent to the console.
-  const signingToken = await issueSignedToken({
-    operations: ['get'],
-    validUntil
-  });
+  const signingToken = await issueSignedToken({ operations: ['get'], validUntil });
 
-  return Promise.all(
-    blobs.map(async (blob) => {
-      const { presignedUrl } = await presignUrl(signingToken, {
-        operation: 'get',
-        pathname: blob.pathname,
-        access: 'private',
-        validUntil
-      });
+  return Promise.all(manifestFiles.map(async (entry) => {
+    const pathname = PREFIX + entry.path;
+    const { presignedUrl } = await presignUrl(signingToken, {
+      operation: 'get',
+      pathname,
+      access: 'private',
+      validUntil
+    });
 
-      return {
-        path: blob.pathname.slice(PREFIX.length),
-        url: presignedUrl,
-        size: Number(blob.size || 0),
-        etag: blob.etag || '',
-        sha256: ''
-      };
-    })
-  );
+    return {
+      path: entry.path,
+      url: presignedUrl,
+      size: Number(entry.size || 0),
+      etag: entry.etag || '',
+      sha256: String(entry.sha256 || '').toLowerCase()
+    };
+  }));
 }
 
 export async function GET(req) {
@@ -55,25 +46,26 @@ export async function GET(req) {
   if (!auth) return json({ error: 'Console session required' }, 401);
 
   try {
-    const blobs = await listSeason7Files();
-    if (blobs.length) {
-      const files = await signedFiles(blobs);
-      const totalSize = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
+    const finalized = await loadFinalManifest();
+    if (finalized) {
+      const files = await signedFiles(finalized.files);
       return json({
         available: true,
         mode: 'files',
-        build: '7.00',
-        cl: '4629139',
+        locked: true,
+        build: finalized.build || '7.00',
+        cl: finalized.cl || '4629139',
         fileCount: files.length,
-        totalSize,
+        totalSize: Number(finalized.totalSize || 0),
         files
       });
     }
   } catch (error) {
-    console.error('content manifest v2 failed', error);
-    // Keep the legacy archive path as a temporary fallback while the private store is being filled.
+    const missing = error?.name === 'BlobNotFoundError' || error?.status === 404 || error?.statusCode === 404;
+    if (!missing) console.error('finalized content manifest failed', error);
   }
 
+  // Temporary fallback until the extracted build has been uploaded and finalized.
   const url = process.env.SEASON7_CONTENT_URL || '';
   const sha256 = (process.env.SEASON7_CONTENT_SHA256 || '').toLowerCase();
   const size = Number(process.env.SEASON7_CONTENT_SIZE || 0);
@@ -84,7 +76,7 @@ export async function GET(req) {
       available: false,
       build: '7.00',
       cl: '4629139',
-      reason: 'No Season 7 files have been uploaded yet.'
+      reason: 'Season 7 extracted content has not been finalized yet.'
     });
   }
 
