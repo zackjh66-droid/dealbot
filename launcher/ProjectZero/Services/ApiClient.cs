@@ -23,7 +23,25 @@ namespace ProjectZero.Services
 
         public static string QrUrl(string data)
         {
-            return AppConfig.BaseUrl + "/api/qr?data=" + Uri.EscapeDataString(data);
+            return AppConfig.BaseUrl + "/api/qr?data=" + Uri.EscapeDataString(data) + "&v=3";
+        }
+
+        public static async Task<byte[]> GetQrPngAsync(string data)
+        {
+            using (var request = new HttpRequestMessage(HttpMethod.Get, QrUrl(data)))
+            {
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/png"));
+                request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
+                using (var response = await Http.SendAsync(request))
+                {
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new ApiException("QR HTTP " + (int)response.StatusCode);
+                    }
+
+                    return await response.Content.ReadAsByteArrayAsync();
+                }
+            }
         }
 
         public static async Task<LinkStartResult> StartLinkAsync()
