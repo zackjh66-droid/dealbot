@@ -10,66 +10,77 @@
     XYFocusKeyboardNavigation="Enabled"
     KeyDown="Page_KeyDown">
 
-    <Grid Padding="54,34,54,30">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="74" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="58" />
-        </Grid.RowDefinitions>
+    <Grid>
+        <Image Source="https://cdn2.unrealengine.com/Fortnite%2Fblog%2Ftake-to-the-skies-in-season-7%2FBR07_News_Featured_16_9-1920x1080-c8c58d82b2986bf9615c839d53bb7763c06895c5.jpg"
+               Stretch="UniformToFill" Opacity="0.92" />
+        <Rectangle Fill="{StaticResource PzHeroScrim}" />
+        <Rectangle Fill="#4A07101C" />
 
-        <Grid Grid.Row="0">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="15">
-                <controls:BrandMark Width="43" Height="43" />
-                <StackPanel VerticalAlignment="Center" Spacing="1">
-                    <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="21" />
-                    <TextBlock Text="SEASON 7 · XBOX" Style="{StaticResource PzMono}" FontSize="10" />
+        <Grid Padding="58,38,58,32">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="78" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="62" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="15">
+                    <controls:BrandMark Width="46" Height="46" />
+                    <StackPanel VerticalAlignment="Center" Spacing="0">
+                        <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="23" />
+                        <TextBlock Text="SEASON 7 / XBOX DEV MODE" Style="{StaticResource PzMono}" FontSize="10" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="10">
-                <Ellipse Width="8" Height="8" Fill="{StaticResource PzOkBrush}" />
-                <TextBlock Text="DEV MODE" Style="{StaticResource PzMono}" FontSize="10" VerticalAlignment="Center" />
-            </StackPanel>
-        </Grid>
+                <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Background="#B00C121A" BorderBrush="#669CB2C9" BorderThickness="1"
+                        CornerRadius="2" Padding="14,8">
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource PzOkBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="ONLINE" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="White" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
-        <Border Grid.Row="0" Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Bottom" />
+            <Grid Grid.Row="1" Margin="0,24,0,26">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.35*" />
+                    <ColumnDefinition Width="0.78*" />
+                </Grid.ColumnDefinitions>
 
-        <Grid Grid.Row="1" Margin="0,28,0,26">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.55*" />
-                <ColumnDefinition Width="0.85*" />
-            </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" MaxWidth="760" Margin="0,0,44,0">
+                    <TextBlock Text="PAIR YOUR CONSOLE" Style="{StaticResource PzEyebrow}" />
+                    <TextBlock Text="LINK THIS XBOX" Style="{StaticResource PzDisplay}"
+                               FontSize="64" Margin="0,5,0,0" />
+                    <TextBlock Text="Open the link on your phone or scan the QR code, then enter the code shown below."
+                               FontFamily="Segoe UI" FontSize="17" Foreground="#FFE6EDF7"
+                               TextWrapping="Wrap" MaxWidth="700" Margin="0,6,0,0" />
 
-            <Grid Margin="0,0,42,0">
-                <StackPanel VerticalAlignment="Center" MaxWidth="720" HorizontalAlignment="Left">
-                    <TextBlock Text="LINK THIS XBOX" Style="{StaticResource PzEyebrow}" />
-                    <TextBlock Text="ENTER THE CODE" Style="{StaticResource PzDisplay}" FontSize="54" Margin="0,8,0,0" />
-                    <TextBlock Text="Use the QR code or open the address below on another device."
-                               Style="{StaticResource PzMono}" FontSize="12" TextWrapping="Wrap"
-                               Margin="0,8,0,0" />
-
-                    <Border Background="#D90D0D12" BorderBrush="{StaticResource PzLineBrush}" BorderThickness="1"
-                            CornerRadius="6" Padding="18,12" Margin="0,28,0,0" MaxWidth="650" HorizontalAlignment="Left">
-                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" Width="610" Height="104">
+                    <Border Background="#DC0B1018" BorderBrush="#7AA7BED5" BorderThickness="1"
+                            CornerRadius="2" Padding="22,13" Margin="0,28,0,0"
+                            Width="650" HorizontalAlignment="Left">
+                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" Height="104">
                             <TextBlock x:Name="CodeText" Text="------"
                                        FontFamily="Consolas" FontSize="92" FontWeight="Bold"
-                                       CharacterSpacing="110" Foreground="{StaticResource PzTextBrush}" />
+                                       CharacterSpacing="90" Foreground="White" />
                         </Viewbox>
                     </Border>
 
                     <TextBlock x:Name="LinkUrlText" Text="PROJECTZERO7.VERCEL.APP/LINK"
-                               Style="{StaticResource PzMono}" FontSize="12"
-                               Foreground="{StaticResource PzVioletBrightBrush}" Margin="0,14,0,0" />
+                               FontFamily="Segoe UI Semibold" FontSize="13" CharacterSpacing="55"
+                               Foreground="{StaticResource PzIceBrush}" Margin="1,13,0,0" />
 
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,27,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,24,0,0">
                         <Ellipse x:Name="StatusDot" Width="9" Height="9"
                                  Fill="{StaticResource PzVioletBrightBrush}" VerticalAlignment="Center" />
-                        <TextBlock x:Name="StatusText" Text="WAITING FOR CLAIM"
-                                   Style="{StaticResource PzMono}" Foreground="{StaticResource PzTextBrush}"
+                        <TextBlock x:Name="StatusText" Text="REQUESTING CODE"
+                                   Style="{StaticResource PzMono}" Foreground="White"
                                    FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
 
-                    <Grid Height="4" Width="520" HorizontalAlignment="Left" Margin="0,15,0,0" Background="#FF1B1B23">
+                    <Grid Height="4" Width="520" HorizontalAlignment="Left" Margin="0,14,0,0"
+                          Background="#802D3C4E">
                         <Rectangle x:Name="PulseBar" Width="150" Height="4" HorizontalAlignment="Left"
                                    Fill="{StaticResource PzBarGradient}">
                             <Rectangle.RenderTransform>
@@ -79,39 +90,53 @@
                     </Grid>
 
                     <TextBlock x:Name="ErrorText" Visibility="Collapsed"
-                               Style="{StaticResource PzMono}" Foreground="#FFFFB4C2"
-                               TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Left"
-                               Margin="0,18,0,0" />
+                               FontFamily="Segoe UI Semibold" FontSize="12"
+                               Foreground="{StaticResource PzDangerBrush}"
+                               TextWrapping="Wrap" MaxWidth="650" HorizontalAlignment="Left"
+                               Margin="0,14,0,0" />
 
                     <Button x:Name="RefreshButton" Content="REFRESH CODE"
                             Style="{StaticResource PzGhostButton}" HorizontalAlignment="Left"
-                            Margin="0,22,0,0" Click="Refresh_Click" />
+                            Margin="0,18,0,0" Click="Refresh_Click" />
                 </StackPanel>
+
+                <Border Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                        Background="#E20B1119" BorderBrush="#88A8BED5" BorderThickness="1"
+                        CornerRadius="2" Padding="26">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="SCAN TO LINK" Style="{StaticResource PzEyebrow}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="USE YOUR PHONE CAMERA"
+                                   Style="{StaticResource PzMono}" FontSize="10"
+                                   HorizontalAlignment="Center" Margin="0,5,0,0" />
+
+                        <Border Background="White" BorderBrush="White" BorderThickness="8"
+                                CornerRadius="0" Margin="0,20,0,0" Width="302" Height="302">
+                            <Grid Background="White">
+                                <Image x:Name="QrImage" Width="286" Height="286"
+                                       Stretch="Fill" Opacity="1" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock x:Name="QrHelpText"
+                                   Text="The QR code opens the same secure console-link page as the code."
+                                   FontFamily="Segoe UI" FontSize="12" Foreground="#FFD6DFEA"
+                                   TextWrapping="Wrap" TextAlignment="Center"
+                                   MaxWidth="300" Margin="0,17,0,0" />
+                    </StackPanel>
+                </Border>
             </Grid>
 
-            <Border Grid.Column="1" Style="{StaticResource PzPanel}" VerticalAlignment="Center"
-                    HorizontalAlignment="Right" MinWidth="330">
-                <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="SCAN TO LINK" Style="{StaticResource PzEyebrow}" HorizontalAlignment="Center" />
-                    <Border Background="#FFFFFFFF" Padding="12" CornerRadius="4" Margin="0,20,0,0">
-                        <Image x:Name="QrImage" Width="238" Height="238" Stretch="Uniform" />
-                    </Border>
-                    <TextBlock Text="The QR code and six-character code open the same link."
-                               Style="{StaticResource PzMono}" FontSize="10" TextWrapping="Wrap"
-                               TextAlignment="Center" MaxWidth="270" Margin="0,17,0,0" />
+            <Grid Grid.Row="2">
+                <Border Height="1" Background="#6A9CB2C9" VerticalAlignment="Top" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="28">
+                    <TextBlock Text="D-PAD / LEFT STICK  NAVIGATE" Style="{StaticResource PzMono}" Foreground="White" />
+                    <TextBlock Text="A  SELECT" Style="{StaticResource PzMono}" Foreground="White" />
+                    <TextBlock Text="B  EXIT" Style="{StaticResource PzMono}" Foreground="White" />
                 </StackPanel>
-            </Border>
-        </Grid>
-
-        <Grid Grid.Row="2">
-            <Border Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Top" />
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="24">
-                <TextBlock Text="◀▶▲▼  D-PAD / LEFT STICK" Style="{StaticResource PzMono}" />
-                <TextBlock Text="A  SELECT" Style="{StaticResource PzMono}" />
-                <TextBlock Text="B  EXIT" Style="{StaticResource PzMono}" />
-            </StackPanel>
-            <TextBlock Text="PROJECT ZERO · 7.00 / CL-4629139" Style="{StaticResource PzMono}"
-                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+                <TextBlock Text="7.00 / CL-4629139" Style="{StaticResource PzMono}"
+                           Foreground="#FFDCE6F0" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
         </Grid>
     </Grid>
 </Page>
