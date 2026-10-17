@@ -1,17 +1,17 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { sha256 } from '@noble/hashes/sha256';
+import { bytesToHex } from '@noble/hashes/utils';
 import { upload } from '@vercel/blob/client';
 
 const PREFIX = 'season7/7.00/4629139/';
+const HASH_CHUNK = 16 * 1024 * 1024;
 
 function relativePathFor(file) {
   const raw = String(file.webkitRelativePath || file.name || '').replace(/\\/g, '/');
   const parts = raw.split('/').filter(Boolean);
   if (!parts.length) return file.name;
-
-  // Folder selection always includes the selected root. Keep Engine/FortniteGame when the user
-  // selects those folders directly; otherwise strip the outer archive/build folder name.
   if (parts[0] === 'Engine' || parts[0] === 'FortniteGame') return parts.join('/');
   return parts.length > 1 ? parts.slice(1).join('/') : parts[0];
 }
@@ -27,15 +27,31 @@ function formatBytes(bytes) {
   return `${value.toFixed(i >= 3 ? 2 : 1)} ${units[i]}`;
 }
 
+async function hashFile(file, onProgress) {
+  const hash = sha256.create();
+  if (file.size === 0) return bytesToHex(hash.digest());
+
+  for (let offset = 0; offset < file.size; offset += HASH_CHUNK) {
+    const end = Math.min(file.size, offset + HASH_CHUNK);
+    const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer());
+    hash.update(chunk);
+    onProgress?.((end / file.size) * 100);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return bytesToHex(hash.digest());
+}
+
 export default function ContentAdminPage() {
   const inputRef = useRef(null);
   const [key, setKey] = useState('');
   const [files, setFiles] = useState([]);
   const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState('IDLE');
   const [current, setCurrent] = useState('');
   const [currentPct, setCurrentPct] = useState(0);
   const [completed, setCompleted] = useState(0);
   const [failed, setFailed] = useState([]);
+  const [locked, setLocked] = useState(false);
 
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
 
@@ -44,25 +60,33 @@ export default function ContentAdminPage() {
     setFiles(selected);
     setCompleted(0);
     setFailed([]);
+    setLocked(false);
+    setPhase('IDLE');
     setCurrent('');
     setCurrentPct(0);
   }
 
   async function startUpload() {
-    if (!key.trim() || !files.length || running) return;
+    if (!key.trim() || !files.length || running || locked) return;
     setRunning(true);
     setCompleted(0);
     setFailed([]);
-
     const failures = [];
+    const manifestFiles = [];
     let done = 0;
+
     for (const file of files) {
       const relativePath = relativePathFor(file);
       const pathname = PREFIX + relativePath;
       setCurrent(relativePath);
-      setCurrentPct(0);
 
       try {
+        setPhase('HASHING');
+        setCurrentPct(0);
+        const digest = await hashFile(file, setCurrentPct);
+
+        setPhase('UPLOADING');
+        setCurrentPct(0);
         await upload(pathname, file, {
           access: 'private',
           handleUploadUrl: '/api/content/upload',
@@ -70,23 +94,47 @@ export default function ContentAdminPage() {
           clientPayload: JSON.stringify({
             key: key.trim(),
             relativePath,
-            size: file.size
+            size: file.size,
+            sha256: digest
           }),
           onUploadProgress: ({ percentage }) => {
             setCurrentPct(Math.max(0, Math.min(100, Number(percentage || 0))));
           }
         });
+
+        manifestFiles.push({ path: relativePath, size: file.size, sha256: digest });
         done += 1;
         setCompleted(done);
       } catch (error) {
         failures.push({ path: relativePath, error: error?.message || 'Upload failed' });
         setFailed([...failures]);
+        break;
+      }
+    }
+
+    if (!failures.length && manifestFiles.length === files.length) {
+      try {
+        setPhase('FINALIZING');
+        setCurrent('Creating immutable Season 7 manifest');
+        setCurrentPct(100);
+        const response = await fetch('/api/content/finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: key.trim(), files: manifestFiles })
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error || 'Finalization failed');
+        setLocked(true);
+        setPhase('LOCKED');
+        setCurrent(`LOCKED · ${body.fileCount} files · ${formatBytes(body.totalSize)}`);
+      } catch (error) {
+        failures.push({ path: 'FINAL MANIFEST', error: error?.message || 'Finalization failed' });
+        setFailed([...failures]);
       }
     }
 
     setRunning(false);
-    setCurrent('');
-    setCurrentPct(0);
+    if (!locked && failures.length) setPhase('FAILED');
   }
 
   return (
@@ -95,8 +143,8 @@ export default function ContentAdminPage() {
         <span className="eyebrow">Project Zero · private content</span>
         <h1>Season 7 Content Manager</h1>
         <p>
-          Select the extracted Fortnite 7.00 folder. Files are uploaded directly to private storage with their
-          folder paths preserved. After a pathname is uploaded it is locked and this uploader will not replace it.
+          Select the extracted Fortnite 7.00 folder. Every file is SHA-256 hashed in your browser, uploaded directly
+          to private storage, then sealed into one immutable build manifest for the Xbox downloader.
         </p>
       </div>
 
@@ -110,7 +158,7 @@ export default function ContentAdminPage() {
           autoComplete="off"
           placeholder="Project Zero content key"
           style={{ width: '100%', marginTop: 10, marginBottom: 20 }}
-          disabled={running}
+          disabled={running || locked}
         />
 
         <input
@@ -120,21 +168,21 @@ export default function ContentAdminPage() {
           webkitdirectory=""
           directory=""
           onChange={chooseFiles}
-          disabled={running}
+          disabled={running || locked}
           style={{ display: 'none' }}
         />
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost" type="button" onClick={() => inputRef.current?.click()} disabled={running}>
+          <button className="btn btn-ghost" type="button" onClick={() => inputRef.current?.click()} disabled={running || locked}>
             Select Fortnite 7.00 folder
           </button>
           <button
             className="btn btn-primary"
             type="button"
             onClick={startUpload}
-            disabled={running || !files.length || !key.trim()}
+            disabled={running || locked || !files.length || !key.trim()}
           >
-            {running ? 'Uploading…' : 'Upload and lock files'}
+            {locked ? 'Build locked' : running ? `${phase}…` : 'Hash, upload and lock build'}
           </button>
         </div>
 
@@ -142,6 +190,7 @@ export default function ContentAdminPage() {
         <div className="kv"><span>Files selected</span><b>{files.length}</b></div>
         <div className="kv"><span>Total size</span><b>{formatBytes(totalBytes)}</b></div>
         <div className="kv"><span>Uploaded this run</span><b>{completed} / {files.length}</b></div>
+        <div className="kv"><span>State</span><b>{phase}</b></div>
 
         {current ? (
           <div style={{ marginTop: 22 }}>
@@ -149,13 +198,19 @@ export default function ContentAdminPage() {
             <div style={{ height: 10, background: '#17151d', marginTop: 10, overflow: 'hidden' }}>
               <div style={{ width: `${currentPct}%`, height: '100%', background: 'currentColor' }} />
             </div>
-            <div className="muted mono" style={{ marginTop: 7 }}>{currentPct.toFixed(1)}%</div>
+            <div className="muted mono" style={{ marginTop: 7 }}>{phase} · {currentPct.toFixed(1)}%</div>
+          </div>
+        ) : null}
+
+        {locked ? (
+          <div className="alert" style={{ marginTop: 22 }}>
+            <b>Season 7 v7.00 is finalized.</b> Xbox clients can now request the signed multi-file manifest. This web uploader will not replace or append to the finalized build.
           </div>
         ) : null}
 
         {failed.length ? (
           <div className="alert" style={{ marginTop: 22 }}>
-            <b>{failed.length} file(s) were not uploaded.</b>
+            <b>Upload stopped.</b>
             {failed.slice(0, 8).map((item) => (
               <div key={item.path} className="mono" style={{ marginTop: 6, overflowWrap: 'anywhere' }}>
                 {item.path} — {item.error}
@@ -165,8 +220,8 @@ export default function ContentAdminPage() {
         ) : null}
 
         <p className="note" style={{ marginTop: 22 }}>
-          Use this only for game files you are authorized to store. Large files use multipart upload directly from
-          your browser to the private Project Zero Blob store; they do not pass through the web server.
+          Large files use multipart upload directly from this browser to the private Project Zero Blob store. SHA-256
+          is calculated locally, so the Xbox can verify the exact bytes after download. Only upload files you are authorized to store.
         </p>
       </div>
     </div>
