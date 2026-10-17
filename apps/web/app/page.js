@@ -22,7 +22,6 @@ async function getBuilds() {
 
 export default async function Home() {
   const builds = await getBuilds();
-  const featured = builds.find((build) => String(build.version) === '7.00') || builds[0];
 
   return (
     <div className="home-shell">
@@ -55,8 +54,8 @@ export default async function Home() {
 
           <div className="home-build-glass home-reveal home-reveal-delay">
             <span className="home-card-label">TARGET BUILD</span>
-            <strong>{featured?.version || '7.00'}</strong>
-            <span>{featured?.cl || 'CL-4629139'}</span>
+            <strong>7.00</strong>
+            <span>CL-4629139</span>
             <div className="home-card-rule" />
             <div className="home-build-row">
               <span>Platform</span>
