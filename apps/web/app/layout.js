@@ -1,17 +1,18 @@
 import './globals.css';
+import './home.css';
 import Link from 'next/link';
 import Brand from '@/components/Brand';
 
 export const metadata = {
-  title: 'Project Zero · Console Division',
+  title: 'Project Zero · Season 7 on Xbox',
   description:
-    'Project Zero is a private Xbox Dev Mode home for Season 6 and Season 7 console builds: device linking, account creation and launcher handoff.'
+    'Project Zero is an independent Xbox Dev Mode preservation launcher focused on the archived Fortnite Chapter 1 Season 7 client, device linking and client handoff.'
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#06050a'
+  themeColor: '#07080c'
 };
 
 export default function RootLayout({ children }) {
@@ -40,9 +41,9 @@ export default function RootLayout({ children }) {
               <div>
                 <Brand size={30} />
                 <p>
-                  Project Zero is an independent preservation workspace for Xbox Dev Mode. It hosts no game
-                  binaries and runs no official services. Builds remain the property of their rights holders.
-                  Not affiliated with Epic Games or Microsoft.
+                  Project Zero is an independent preservation workspace for Xbox Developer Mode. Only use
+                  archived content you are authorised to hold. Game content and trademarks remain the property
+                  of their respective rights holders. Project Zero is not affiliated with Epic Games or Microsoft.
                 </p>
               </div>
               <div className="footer-links">
