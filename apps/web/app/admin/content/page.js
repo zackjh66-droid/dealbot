@@ -9,11 +9,13 @@ const PREFIX = 'season7/7.00/4629139/';
 const HASH_CHUNK = 16 * 1024 * 1024;
 const UPLOAD_ATTEMPTS = 4;
 
-function relativePathFor(file) {
-  const raw = String(file.webkitRelativePath || file.name || '').replace(/\\/g, '/');
+function normalizeRelativePath(value) {
+  const raw = String(value || '').replace(/\\/g, '/');
   const parts = raw.split('/').filter(Boolean);
-  if (!parts.length) return file.name;
-  if (parts[0] === 'Engine' || parts[0] === 'FortniteGame') return parts.join('/');
+  if (!parts.length) return '';
+
+  const gameRoot = parts.findIndex((part) => part === 'Engine' || part === 'FortniteGame');
+  if (gameRoot >= 0) return parts.slice(gameRoot).join('/');
   return parts.length > 1 ? parts.slice(1).join('/') : parts[0];
 }
 
@@ -32,12 +34,90 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function ensureReadPermission(handle) {
+  if (!handle) return;
+  try {
+    if (handle.queryPermission && (await handle.queryPermission({ mode: 'read' })) === 'granted') return;
+    if (handle.requestPermission) {
+      const result = await handle.requestPermission({ mode: 'read' });
+      if (result !== 'granted') throw new Error('Folder read permission was not granted.');
+    }
+  } catch (error) {
+    if (error?.name === 'SecurityError') return;
+    throw error;
+  }
+}
+
+async function scanDirectory(handle, prefix = '', output = []) {
+  for await (const [name, child] of handle.entries()) {
+    const path = prefix ? `${prefix}/${name}` : name;
+    if (child.kind === 'directory') {
+      await scanDirectory(child, path, output);
+      continue;
+    }
+
+    const file = await child.getFile();
+    const relativePath = normalizeRelativePath(path);
+    if (!relativePath) continue;
+    output.push({
+      relativePath,
+      size: file.size,
+      lastModified: file.lastModified,
+      handle: child,
+      legacyFile: null
+    });
+  }
+  return output;
+}
+
+function legacyEntries(fileList) {
+  return Array.from(fileList || []).map((file) => ({
+    relativePath: normalizeRelativePath(file.webkitRelativePath || file.name),
+    size: file.size,
+    lastModified: file.lastModified,
+    handle: null,
+    legacyFile: file
+  })).filter((entry) => entry.relativePath);
+}
+
+async function materializeEntry(entry) {
+  if (entry.handle) {
+    await ensureReadPermission(entry.handle);
+    const file = await entry.handle.getFile();
+    if (file.size !== entry.size || file.lastModified !== entry.lastModified) {
+      throw new Error('Local file changed after the folder was selected. Re-select the folder before continuing.');
+    }
+    return file;
+  }
+  if (entry.legacyFile) return entry.legacyFile;
+  throw new Error('Local file handle is unavailable.');
+}
+
 async function hashFile(file, onProgress) {
   const hash = sha256.create();
   if (file.size === 0) return bytesToHex(hash.digest());
 
-  // Keep the browser reading the selected File continuously. Explicitly yielding with setTimeout
-  // between chunks can cause Chromium to lose access to long-lived File references on some systems.
+  // Prefer one continuous file stream. This keeps Chromium/ChromeOS from repeatedly reopening
+  // multi-gigabyte PAK files for each slice, which can trigger NotReadableError on large files.
+  if (typeof file.stream === 'function') {
+    const reader = file.stream().getReader();
+    let loaded = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value?.byteLength) {
+          hash.update(value);
+          loaded += value.byteLength;
+          onProgress?.((loaded / file.size) * 100);
+        }
+      }
+      return bytesToHex(hash.digest());
+    } finally {
+      try { reader.releaseLock(); } catch { /* no-op */ }
+    }
+  }
+
   for (let offset = 0; offset < file.size; offset += HASH_CHUNK) {
     const end = Math.min(file.size, offset + HASH_CHUNK);
     const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer());
@@ -45,6 +125,22 @@ async function hashFile(file, onProgress) {
     onProgress?.((end / file.size) * 100);
   }
   return bytesToHex(hash.digest());
+}
+
+async function hashEntry(entry, onProgress) {
+  let lastError;
+  for (let attempt = 0; attempt < (entry.handle ? 2 : 1); attempt += 1) {
+    try {
+      const file = await materializeEntry(entry);
+      return await hashFile(file, onProgress);
+    } catch (error) {
+      lastError = error;
+      if (!(error?.name === 'NotReadableError' || String(error?.message || '').includes('requested file could not be read'))) {
+        throw error;
+      }
+    }
+  }
+  throw lastError || new Error('Unable to read local file.');
 }
 
 async function getRemoteStatus(key, path, size) {
@@ -67,10 +163,13 @@ async function getRemoteStatus(key, path, size) {
   return body;
 }
 
-async function uploadWithRetry(pathname, file, options, onRetry) {
+async function uploadEntryWithRetry(pathname, entry, options, onRetry) {
   let lastError;
   for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt += 1) {
     try {
+      // Re-open from the persistent FileSystemFileHandle for every upload attempt instead of
+      // holding a stale File object for the lifetime of a many-gigabyte folder upload.
+      const file = await materializeEntry(entry);
       return await upload(pathname, file, options);
     } catch (error) {
       lastError = error;
@@ -86,6 +185,7 @@ export default function ContentAdminPage() {
   const inputRef = useRef(null);
   const [key, setKey] = useState('');
   const [files, setFiles] = useState([]);
+  const [selectionMode, setSelectionMode] = useState('NONE');
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState('IDLE');
   const [current, setCurrent] = useState('');
@@ -97,9 +197,9 @@ export default function ContentAdminPage() {
 
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
 
-  function chooseFiles(event) {
-    const selected = Array.from(event.target.files || []);
-    setFiles(selected);
+  function resetSelection(selected, mode) {
+    setFiles(selected.sort((a, b) => a.relativePath.localeCompare(b.relativePath)));
+    setSelectionMode(mode);
     setCompleted(0);
     setResumed(0);
     setFailed([]);
@@ -107,6 +207,37 @@ export default function ContentAdminPage() {
     setPhase('IDLE');
     setCurrent('');
     setCurrentPct(0);
+  }
+
+  function chooseLegacyFiles(event) {
+    resetSelection(legacyEntries(event.target.files), 'LEGACY');
+  }
+
+  async function choosePersistentFolder() {
+    if (running || locked) return;
+
+    if (typeof window === 'undefined' || typeof window.showDirectoryPicker !== 'function') {
+      inputRef.current?.click();
+      return;
+    }
+
+    try {
+      setPhase('SCANNING');
+      setCurrent('Choose the extracted Fortnite 7.00 folder');
+      setCurrentPct(0);
+      const directory = await window.showDirectoryPicker({ mode: 'read' });
+      await ensureReadPermission(directory);
+      const selected = await scanDirectory(directory);
+      resetSelection(selected, 'PERSISTENT');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setPhase('IDLE');
+        setCurrent('');
+        return;
+      }
+      setPhase('FAILED');
+      setFailed([{ path: 'FOLDER', error: error?.message || 'Could not read the selected folder.' }]);
+    }
   }
 
   async function startUpload() {
@@ -121,26 +252,28 @@ export default function ContentAdminPage() {
     let done = 0;
     let reused = 0;
 
-    for (const file of files) {
-      const relativePath = relativePathFor(file);
+    for (const entry of files) {
+      const relativePath = entry.relativePath;
       const pathname = PREFIX + relativePath;
       setCurrent(relativePath);
 
       try {
-        setPhase('HASHING');
-        setCurrentPct(0);
-        const digest = await hashFile(file, setCurrentPct);
-
         setPhase('CHECKING');
-        setCurrentPct(100);
-        const existing = await getRemoteStatus(uploadKey, relativePath, file.size);
+        setCurrentPct(0);
+        const existing = await getRemoteStatus(uploadKey, relativePath, entry.size);
         if (existing.locked) {
           setLocked(true);
           throw new Error('Season 7 content is already finalized and locked.');
         }
 
+        // We still hash recovered files locally so the final manifest contains a SHA-256 for every
+        // file, but we do the remote check first so nothing is uploaded unnecessarily.
+        setPhase(existing.exists && existing.sizeMatches ? 'HASHING RECOVERED FILE' : 'HASHING');
+        setCurrentPct(0);
+        const digest = await hashEntry(entry, setCurrentPct);
+
         if (existing.exists && existing.sizeMatches) {
-          manifestFiles.push({ path: relativePath, size: file.size, sha256: digest });
+          manifestFiles.push({ path: relativePath, size: entry.size, sha256: digest });
           done += 1;
           reused += 1;
           setCompleted(done);
@@ -151,9 +284,9 @@ export default function ContentAdminPage() {
         setPhase('UPLOADING');
         setCurrentPct(0);
         try {
-          await uploadWithRetry(
+          await uploadEntryWithRetry(
             pathname,
-            file,
+            entry,
             {
               access: 'private',
               handleUploadUrl: '/api/content/upload',
@@ -161,7 +294,7 @@ export default function ContentAdminPage() {
               clientPayload: JSON.stringify({
                 key: uploadKey,
                 relativePath,
-                size: file.size,
+                size: entry.size,
                 sha256: digest
               }),
               onUploadProgress: ({ percentage }) => {
@@ -173,9 +306,7 @@ export default function ContentAdminPage() {
             }
           );
         } catch (uploadError) {
-          // A browser/network error can arrive after Blob has already accepted the bytes. Check the
-          // remote pathname once more before deciding that this file really failed.
-          const recovered = await getRemoteStatus(uploadKey, relativePath, file.size);
+          const recovered = await getRemoteStatus(uploadKey, relativePath, entry.size);
           if (!(recovered.exists && recovered.sizeMatches)) throw uploadError;
           reused += 1;
           setResumed(reused);
@@ -183,20 +314,22 @@ export default function ContentAdminPage() {
 
         setPhase('VERIFYING');
         setCurrentPct(100);
-        const verified = await getRemoteStatus(uploadKey, relativePath, file.size);
+        const verified = await getRemoteStatus(uploadKey, relativePath, entry.size);
         if (!verified.exists || !verified.sizeMatches) {
           throw new Error('Uploaded file could not be verified in private storage.');
         }
 
-        manifestFiles.push({ path: relativePath, size: file.size, sha256: digest });
+        manifestFiles.push({ path: relativePath, size: entry.size, sha256: digest });
         done += 1;
         setCompleted(done);
       } catch (error) {
         let message = error?.message || 'Upload failed';
         if (error?.name === 'NotReadableError' || message.includes('requested file could not be read')) {
-          message = 'Chrome lost permission to read this selected file. Re-select the same local Fortnite 7.00 folder, then press Resume upload. Files already stored will be recovered automatically.';
+          message = selectionMode === 'PERSISTENT'
+            ? 'ChromeOS still cannot open this local file through its persistent folder handle. Move the extracted Fortnite 7.00 folder to local Downloads/My files (not Google Drive, Linux files, a network share, or read-only media), then select it again.'
+            : 'This folder was selected with Chrome\'s legacy file picker. Use the new persistent folder picker instead; it re-opens each PAK from a FileSystemFileHandle and is designed for multi-GB files.';
         } else if (message.includes('Failed to retrieve the client token')) {
-          message = 'Upload token failed after automatic retries. Press the button again; files already stored will be detected and skipped.';
+          message = 'Upload token failed after automatic retries. Press Resume upload; files already stored will be detected and skipped.';
         }
         failures.push({ path: relativePath, error: message });
         setFailed([...failures]);
@@ -237,8 +370,8 @@ export default function ContentAdminPage() {
         <span className="eyebrow">Project Zero · private content</span>
         <h1>Season 7 Content Manager</h1>
         <p>
-          Select the extracted Fortnite 7.00 folder. Every file is SHA-256 hashed in your browser, uploaded directly
-          to private storage, then sealed into one immutable build manifest for the Xbox downloader.
+          Select the extracted Fortnite 7.00 folder. On Chrome/ChromeOS the manager now uses persistent directory
+          handles so multi-gigabyte PAK files are reopened immediately before hashing and upload.
         </p>
       </div>
 
@@ -261,13 +394,13 @@ export default function ContentAdminPage() {
           multiple
           webkitdirectory=""
           directory=""
-          onChange={chooseFiles}
+          onChange={chooseLegacyFiles}
           disabled={running || locked}
           style={{ display: 'none' }}
         />
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost" type="button" onClick={() => inputRef.current?.click()} disabled={running || locked}>
+          <button className="btn btn-ghost" type="button" onClick={choosePersistentFolder} disabled={running || locked}>
             Select Fortnite 7.00 folder
           </button>
           <button
@@ -283,6 +416,7 @@ export default function ContentAdminPage() {
         <div className="rule" />
         <div className="kv"><span>Files selected</span><b>{files.length}</b></div>
         <div className="kv"><span>Total size</span><b>{formatBytes(totalBytes)}</b></div>
+        <div className="kv"><span>Folder access</span><b>{selectionMode}</b></div>
         <div className="kv"><span>Ready this run</span><b>{completed} / {files.length}</b></div>
         <div className="kv"><span>Recovered from storage</span><b>{resumed}</b></div>
         <div className="kv"><span>State</span><b>{phase}</b></div>
@@ -294,6 +428,12 @@ export default function ContentAdminPage() {
               <div style={{ width: `${currentPct}%`, height: '100%', background: 'currentColor' }} />
             </div>
             <div className="muted mono" style={{ marginTop: 7 }}>{phase} · {currentPct.toFixed(1)}%</div>
+          </div>
+        ) : null}
+
+        {selectionMode === 'LEGACY' ? (
+          <div className="alert" style={{ marginTop: 22 }}>
+            This browser fell back to legacy folder selection. For the 4+ GB PAKs, use current desktop Chrome/ChromeOS so the persistent folder picker is available.
           </div>
         ) : null}
 
@@ -315,7 +455,8 @@ export default function ContentAdminPage() {
         ) : null}
 
         <p className="note" style={{ marginTop: 22 }}>
-          Interrupted uploads are resumable: select the same folder again and the manager checks private storage before uploading each file. Large files use multipart upload, and SHA-256 is calculated locally so the Xbox can verify the exact bytes after download. Only upload files you are authorized to store.
+          Already-uploaded files are recovered from private storage. Large files use multipart upload. SHA-256 is
+          calculated locally so the Xbox can verify the exact bytes after download. Only upload files you are authorized to store.
         </p>
       </div>
     </div>
