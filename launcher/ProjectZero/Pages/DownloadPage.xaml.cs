@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -48,7 +49,7 @@ namespace ProjectZero.Pages
                 TopStateText.Text = "CHECKING";
                 _manifest = await ApiClient.GetContentManifestAsync(SessionStore.ConsoleToken);
 
-                if (_manifest == null || !_manifest.Available || string.IsNullOrWhiteSpace(_manifest.Url))
+                if (_manifest == null || !_manifest.Available || !HasUsableSource(_manifest))
                 {
                     DownloadStateText.Text = "CONTENT SOURCE NOT CONFIGURED";
                     TopStateText.Text = "WAITING";
@@ -59,8 +60,17 @@ namespace ProjectZero.Pages
 
                 VersionValue.Text = string.IsNullOrWhiteSpace(_manifest.Build) ? "7.00" : _manifest.Build;
                 ClValue.Text = string.IsNullOrWhiteSpace(_manifest.Cl) ? "4629139" : _manifest.Cl;
-                FileValue.Text = _manifest.FileName ?? "content.pkg";
-                BytesText.Text = "0 MB / " + FormatBytes(_manifest.Size);
+                if (IsMultiFile(_manifest))
+                {
+                    FileValue.Text = _manifest.Files.Count + " FILES";
+                    BytesText.Text = "0 MB / " + FormatBytes(TotalBytes(_manifest));
+                    DetailText.Text = "The extracted Season 7 folder will be restored into ProjectZeroContent with its original paths.";
+                }
+                else
+                {
+                    FileValue.Text = _manifest.FileName ?? "content.pkg";
+                    BytesText.Text = "0 MB / " + FormatBytes(_manifest.Size);
+                }
 
                 if (await ContentStore.IsInstalledAsync(_manifest))
                 {
@@ -82,7 +92,7 @@ namespace ProjectZero.Pages
 
         private async Task StartDownloadAsync()
         {
-            if (_manifest == null || string.IsNullOrWhiteSpace(_manifest.Url)) return;
+            if (_manifest == null || !HasUsableSource(_manifest)) return;
 
             _downloadCts?.Cancel();
             _downloadCts = new CancellationTokenSource();
@@ -95,41 +105,14 @@ namespace ProjectZero.Pages
 
             try
             {
-                var progress = new Progress<DownloadSnapshot>(p =>
+                if (IsMultiFile(_manifest))
                 {
-                    var percent = Math.Max(0, Math.Min(100, p.Percent));
-                    DownloadProgressFill.Width = 7.0 * percent;
-                    PercentText.Text = percent.ToString("0.0") + "%";
-                    BytesText.Text = FormatBytes(p.Received) + " / " +
-                                     (p.Total > 0 ? FormatBytes(p.Total) : FormatBytes(_manifest.Size));
-                    DownloadStateText.Text = "DOWNLOADING · " + (p.Status ?? "RUNNING").ToUpperInvariant();
-                });
-
-                var file = await ContentDownloader.DownloadAsync(
-                    new Uri(_manifest.Url),
-                    _manifest.FileName ?? "season7-content.pkg",
-                    progress,
-                    _downloadCts.Token);
-
-                DownloadProgressFill.Width = 700;
-                PercentText.Text = "100%";
-                DownloadStateText.Text = "VERIFYING PACKAGE";
-                TopStateText.Text = "VERIFYING";
-                IntegrityValue.Text = "VERIFYING";
-                CancelButton.Visibility = Visibility.Collapsed;
-
-                var valid = await ContentStore.VerifyAsync(file, _manifest);
-                if (!valid)
-                {
-                    try { await file.DeleteAsync(StorageDeleteOption.PermanentDelete); } catch { }
-                    ShowFailure("INTEGRITY CHECK FAILED", "The downloaded package did not match the expected size or SHA-256 hash.");
-                    return;
+                    await DownloadFileSetAsync();
                 }
-
-                await ContentStore.MarkInstalledAsync(_manifest);
-                IntegrityValue.Text = "VERIFIED";
-                IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
-                MarkReady();
+                else
+                {
+                    await DownloadArchiveAsync();
+                }
             }
             catch (TaskCanceledException)
             {
@@ -144,6 +127,113 @@ namespace ProjectZero.Pages
             }
         }
 
+        private async Task DownloadFileSetAsync()
+        {
+            var total = TotalBytes(_manifest);
+            ulong completedBytes = 0;
+            var totalFiles = _manifest.Files.Count;
+
+            for (var index = 0; index < totalFiles; index++)
+            {
+                _downloadCts.Token.ThrowIfCancellationRequested();
+                var item = _manifest.Files[index];
+                if (item == null || string.IsNullOrWhiteSpace(item.Path) || string.IsNullOrWhiteSpace(item.Url))
+                {
+                    throw new InvalidOperationException("Content manifest contains an invalid file entry.");
+                }
+
+                var existing = await ContentDownloader.TryGetFileAsync(item.Path);
+                if (existing != null && await ContentStore.VerifyAsync(existing, item))
+                {
+                    completedBytes += item.Size;
+                    UpdateAggregateProgress(completedBytes, total, index + 1, totalFiles, item.Path, "VERIFIED");
+                    continue;
+                }
+
+                var baseCompleted = completedBytes;
+                var progress = new Progress<DownloadSnapshot>(p =>
+                {
+                    var aggregate = baseCompleted + p.Received;
+                    UpdateAggregateProgress(aggregate, total, index + 1, totalFiles, item.Path, p.Status ?? "RUNNING");
+                });
+
+                var file = await ContentDownloader.DownloadAsync(
+                    new Uri(item.Url),
+                    item.Path,
+                    progress,
+                    _downloadCts.Token);
+
+                DownloadStateText.Text = "VERIFYING " + (index + 1) + " / " + totalFiles;
+                TopStateText.Text = "VERIFYING";
+                IntegrityValue.Text = "VERIFYING";
+
+                if (!await ContentStore.VerifyAsync(file, item))
+                {
+                    try { await file.DeleteAsync(StorageDeleteOption.PermanentDelete); } catch { }
+                    ShowFailure("INTEGRITY CHECK FAILED", "Downloaded file did not match the manifest: " + item.Path);
+                    return;
+                }
+
+                completedBytes += item.Size;
+                UpdateAggregateProgress(completedBytes, total, index + 1, totalFiles, item.Path, "VERIFIED");
+            }
+
+            CancelButton.Visibility = Visibility.Collapsed;
+            await ContentStore.MarkInstalledAsync(_manifest);
+            IntegrityValue.Text = "VERIFIED";
+            IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
+            MarkReady();
+        }
+
+        private async Task DownloadArchiveAsync()
+        {
+            var progress = new Progress<DownloadSnapshot>(p =>
+            {
+                var percent = Math.Max(0, Math.Min(100, p.Percent));
+                DownloadProgressFill.Width = 7.0 * percent;
+                PercentText.Text = percent.ToString("0.0") + "%";
+                BytesText.Text = FormatBytes(p.Received) + " / " +
+                                 (p.Total > 0 ? FormatBytes(p.Total) : FormatBytes(_manifest.Size));
+                DownloadStateText.Text = "DOWNLOADING · " + (p.Status ?? "RUNNING").ToUpperInvariant();
+            });
+
+            var file = await ContentDownloader.DownloadAsync(
+                new Uri(_manifest.Url),
+                _manifest.FileName ?? "season7-content.pkg",
+                progress,
+                _downloadCts.Token);
+
+            DownloadProgressFill.Width = 700;
+            PercentText.Text = "100%";
+            DownloadStateText.Text = "VERIFYING PACKAGE";
+            TopStateText.Text = "VERIFYING";
+            IntegrityValue.Text = "VERIFYING";
+            CancelButton.Visibility = Visibility.Collapsed;
+
+            if (!await ContentStore.VerifyAsync(file, _manifest))
+            {
+                try { await file.DeleteAsync(StorageDeleteOption.PermanentDelete); } catch { }
+                ShowFailure("INTEGRITY CHECK FAILED", "The downloaded package did not match the expected size or SHA-256 hash.");
+                return;
+            }
+
+            await ContentStore.MarkInstalledAsync(_manifest);
+            IntegrityValue.Text = "VERIFIED";
+            IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
+            MarkReady();
+        }
+
+        private void UpdateAggregateProgress(ulong received, ulong total, int fileNumber, int fileCount, string path, string status)
+        {
+            var percent = total > 0 ? Math.Max(0, Math.Min(100, received * 100.0 / total)) : 0;
+            DownloadProgressFill.Width = 7.0 * percent;
+            PercentText.Text = percent.ToString("0.0") + "%";
+            BytesText.Text = FormatBytes(received) + " / " + FormatBytes(total);
+            FileValue.Text = fileNumber + " / " + fileCount;
+            DownloadStateText.Text = (status ?? "RUNNING").ToUpperInvariant() + " · " + ShortPath(path);
+            TopStateText.Text = "DOWNLOADING";
+        }
+
         private void MarkReady()
         {
             DownloadProgressFill.Width = 700;
@@ -152,7 +242,9 @@ namespace ProjectZero.Pages
             TopStateText.Text = "READY";
             IntegrityValue.Text = "VERIFIED";
             IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
-            DetailText.Text = "Season 7 content is present and verified. Continue to the Project Zero Xbox client.";
+            DetailText.Text = IsMultiFile(_manifest)
+                ? "Season 7 files are present in their original folder layout and verified. Continue to the Project Zero Xbox client."
+                : "Season 7 content is present and verified. Continue to the Project Zero Xbox client.";
             ContinueButton.Visibility = Visibility.Visible;
             RetryButton.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Collapsed;
@@ -172,9 +264,17 @@ namespace ProjectZero.Pages
 
         private async void Retry_Click(object sender, RoutedEventArgs e)
         {
-            if (_manifest != null && _manifest.Available && !string.IsNullOrWhiteSpace(_manifest.Url))
+            if (_manifest != null && _manifest.Available && HasUsableSource(_manifest))
             {
-                await StartDownloadAsync();
+                // Refresh signed file URLs before retrying a multi-file transfer.
+                if (IsMultiFile(_manifest))
+                {
+                    await PrepareAsync();
+                }
+                else
+                {
+                    await StartDownloadAsync();
+                }
             }
             else
             {
@@ -190,6 +290,31 @@ namespace ProjectZero.Pages
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
             _downloadCts?.Cancel();
+        }
+
+        private static bool IsMultiFile(ContentManifest manifest)
+        {
+            return manifest?.Files != null && manifest.Files.Count > 0 &&
+                   string.Equals(manifest.Mode, "files", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool HasUsableSource(ContentManifest manifest)
+        {
+            return IsMultiFile(manifest) || !string.IsNullOrWhiteSpace(manifest?.Url);
+        }
+
+        private static ulong TotalBytes(ContentManifest manifest)
+        {
+            if (manifest == null) return 0;
+            if (manifest.TotalSize > 0) return manifest.TotalSize;
+            if (manifest.Files != null) return manifest.Files.Aggregate(0UL, (sum, item) => sum + (item?.Size ?? 0));
+            return manifest.Size;
+        }
+
+        private static string ShortPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return "FILE";
+            return path.Length <= 48 ? path : "…" + path.Substring(path.Length - 47);
         }
 
         private static string FormatBytes(ulong bytes)
