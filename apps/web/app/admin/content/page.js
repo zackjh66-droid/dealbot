@@ -7,6 +7,7 @@ import { upload } from '@vercel/blob/client';
 
 const PREFIX = 'season7/7.00/4629139/';
 const HASH_CHUNK = 16 * 1024 * 1024;
+const UPLOAD_ATTEMPTS = 4;
 
 function relativePathFor(file) {
   const raw = String(file.webkitRelativePath || file.name || '').replace(/\\/g, '/');
@@ -27,6 +28,10 @@ function formatBytes(bytes) {
   return `${value.toFixed(i >= 3 ? 2 : 1)} ${units[i]}`;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function hashFile(file, onProgress) {
   const hash = sha256.create();
   if (file.size === 0) return bytesToHex(hash.digest());
@@ -36,9 +41,44 @@ async function hashFile(file, onProgress) {
     const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer());
     hash.update(chunk);
     onProgress?.((end / file.size) * 100);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await sleep(0);
   }
   return bytesToHex(hash.digest());
+}
+
+async function getRemoteStatus(key, path, size) {
+  const response = await fetch('/api/content/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, path, size })
+  });
+
+  let body = {};
+  try {
+    body = await response.json();
+  } catch {
+    // Keep the HTTP status below as the useful error if the body is not JSON.
+  }
+
+  if (!response.ok) {
+    throw new Error(body?.error || `Content status HTTP ${response.status}`);
+  }
+  return body;
+}
+
+async function uploadWithRetry(pathname, file, options, onRetry) {
+  let lastError;
+  for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      return await upload(pathname, file, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= UPLOAD_ATTEMPTS) break;
+      onRetry?.(attempt, error);
+      await sleep(Math.min(4000, 750 * (2 ** (attempt - 1))));
+    }
+  }
+  throw lastError || new Error('Upload failed');
 }
 
 export default function ContentAdminPage() {
@@ -50,6 +90,7 @@ export default function ContentAdminPage() {
   const [current, setCurrent] = useState('');
   const [currentPct, setCurrentPct] = useState(0);
   const [completed, setCompleted] = useState(0);
+  const [resumed, setResumed] = useState(0);
   const [failed, setFailed] = useState([]);
   const [locked, setLocked] = useState(false);
 
@@ -59,6 +100,7 @@ export default function ContentAdminPage() {
     const selected = Array.from(event.target.files || []);
     setFiles(selected);
     setCompleted(0);
+    setResumed(0);
     setFailed([]);
     setLocked(false);
     setPhase('IDLE');
@@ -68,12 +110,15 @@ export default function ContentAdminPage() {
 
   async function startUpload() {
     if (!key.trim() || !files.length || running || locked) return;
+    const uploadKey = key.trim();
     setRunning(true);
     setCompleted(0);
+    setResumed(0);
     setFailed([]);
     const failures = [];
     const manifestFiles = [];
     let done = 0;
+    let reused = 0;
 
     for (const file of files) {
       const relativePath = relativePathFor(file);
@@ -85,28 +130,72 @@ export default function ContentAdminPage() {
         setCurrentPct(0);
         const digest = await hashFile(file, setCurrentPct);
 
+        setPhase('CHECKING');
+        setCurrentPct(100);
+        const existing = await getRemoteStatus(uploadKey, relativePath, file.size);
+        if (existing.locked) {
+          setLocked(true);
+          throw new Error('Season 7 content is already finalized and locked.');
+        }
+
+        if (existing.exists && existing.sizeMatches) {
+          manifestFiles.push({ path: relativePath, size: file.size, sha256: digest });
+          done += 1;
+          reused += 1;
+          setCompleted(done);
+          setResumed(reused);
+          continue;
+        }
+
         setPhase('UPLOADING');
         setCurrentPct(0);
-        await upload(pathname, file, {
-          access: 'private',
-          handleUploadUrl: '/api/content/upload',
-          multipart: true,
-          clientPayload: JSON.stringify({
-            key: key.trim(),
-            relativePath,
-            size: file.size,
-            sha256: digest
-          }),
-          onUploadProgress: ({ percentage }) => {
-            setCurrentPct(Math.max(0, Math.min(100, Number(percentage || 0))));
-          }
-        });
+        try {
+          await uploadWithRetry(
+            pathname,
+            file,
+            {
+              access: 'private',
+              handleUploadUrl: '/api/content/upload',
+              multipart: true,
+              clientPayload: JSON.stringify({
+                key: uploadKey,
+                relativePath,
+                size: file.size,
+                sha256: digest
+              }),
+              onUploadProgress: ({ percentage }) => {
+                setCurrentPct(Math.max(0, Math.min(100, Number(percentage || 0))));
+              }
+            },
+            (attempt) => {
+              setPhase(`RETRY ${attempt}/${UPLOAD_ATTEMPTS - 1}`);
+            }
+          );
+        } catch (uploadError) {
+          // A browser/network error can arrive after Blob has already accepted the bytes. Check the
+          // remote pathname once more before deciding that this file really failed.
+          const recovered = await getRemoteStatus(uploadKey, relativePath, file.size);
+          if (!(recovered.exists && recovered.sizeMatches)) throw uploadError;
+          reused += 1;
+          setResumed(reused);
+        }
+
+        setPhase('VERIFYING');
+        setCurrentPct(100);
+        const verified = await getRemoteStatus(uploadKey, relativePath, file.size);
+        if (!verified.exists || !verified.sizeMatches) {
+          throw new Error('Uploaded file could not be verified in private storage.');
+        }
 
         manifestFiles.push({ path: relativePath, size: file.size, sha256: digest });
         done += 1;
         setCompleted(done);
       } catch (error) {
-        failures.push({ path: relativePath, error: error?.message || 'Upload failed' });
+        let message = error?.message || 'Upload failed';
+        if (message.includes('Failed to retrieve the client token')) {
+          message = 'Upload token failed after automatic retries. Press the button again; files already stored will be detected and skipped.';
+        }
+        failures.push({ path: relativePath, error: message });
         setFailed([...failures]);
         break;
       }
@@ -120,7 +209,7 @@ export default function ContentAdminPage() {
         const response = await fetch('/api/content/finalize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: key.trim(), files: manifestFiles })
+          body: JSON.stringify({ key: uploadKey, files: manifestFiles })
         });
         const body = await response.json();
         if (!response.ok) throw new Error(body?.error || 'Finalization failed');
@@ -130,11 +219,13 @@ export default function ContentAdminPage() {
       } catch (error) {
         failures.push({ path: 'FINAL MANIFEST', error: error?.message || 'Finalization failed' });
         setFailed([...failures]);
+        setPhase('FAILED');
       }
+    } else if (failures.length) {
+      setPhase('FAILED');
     }
 
     setRunning(false);
-    if (!locked && failures.length) setPhase('FAILED');
   }
 
   return (
@@ -182,14 +273,15 @@ export default function ContentAdminPage() {
             onClick={startUpload}
             disabled={running || locked || !files.length || !key.trim()}
           >
-            {locked ? 'Build locked' : running ? `${phase}…` : 'Hash, upload and lock build'}
+            {locked ? 'Build locked' : running ? `${phase}…` : failed.length ? 'Resume upload' : 'Hash, upload and lock build'}
           </button>
         </div>
 
         <div className="rule" />
         <div className="kv"><span>Files selected</span><b>{files.length}</b></div>
         <div className="kv"><span>Total size</span><b>{formatBytes(totalBytes)}</b></div>
-        <div className="kv"><span>Uploaded this run</span><b>{completed} / {files.length}</b></div>
+        <div className="kv"><span>Ready this run</span><b>{completed} / {files.length}</b></div>
+        <div className="kv"><span>Recovered from storage</span><b>{resumed}</b></div>
         <div className="kv"><span>State</span><b>{phase}</b></div>
 
         {current ? (
@@ -220,8 +312,7 @@ export default function ContentAdminPage() {
         ) : null}
 
         <p className="note" style={{ marginTop: 22 }}>
-          Large files use multipart upload directly from this browser to the private Project Zero Blob store. SHA-256
-          is calculated locally, so the Xbox can verify the exact bytes after download. Only upload files you are authorized to store.
+          Interrupted uploads are resumable: select the same folder again and the manager checks private storage before uploading each file. Large files use multipart upload, and SHA-256 is calculated locally so the Xbox can verify the exact bytes after download. Only upload files you are authorized to store.
         </p>
       </div>
     </div>
