@@ -1,9 +1,12 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using Windows.Data.Json;
+using Windows.Security.Credentials;
 using Windows.Storage;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -14,6 +17,7 @@ namespace ProjectZeroClient
     {
         private const string SharedFolderName = "ProjectZeroContent";
         private const string MarkerFileName = "projectzero-content.json";
+        private static readonly HttpClient Http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
 
         public ClientPage() { InitializeComponent(); }
 
@@ -23,21 +27,110 @@ namespace ProjectZeroClient
             var raw = e.Parameter as string ?? "";
 
             string protocolState;
+            string sessionState = "session=NOT_REQUESTED";
             try
             {
                 var uri = new Uri(raw);
                 protocolState = "scheme=" + uri.Scheme +
                                 "\nactivation=OK" +
                                 "\nquery_received=" + (!string.IsNullOrEmpty(uri.Query));
+
+                var ticket = QueryValue(uri, "ticket");
+                var endpoint = QueryValue(uri, "endpoint");
+                if (!string.IsNullOrWhiteSpace(ticket) && !string.IsNullOrWhiteSpace(endpoint))
+                {
+                    PayloadText.Text = protocolState + "\nsession=CONNECTING\ncontent=WAITING";
+                    sessionState = await RedeemGameSessionAsync(endpoint, ticket);
+                }
             }
             catch
             {
                 protocolState = "activation=DIRECT";
             }
 
-            PayloadText.Text = protocolState + "\ncontent=CHECKING";
+            PayloadText.Text = protocolState + "\n" + sessionState + "\ncontent=CHECKING";
             var contentState = await ReadAndVerifyContentStateAsync();
-            PayloadText.Text = protocolState + "\n" + contentState;
+            PayloadText.Text = protocolState + "\n" + sessionState + "\n" + contentState;
+        }
+
+        private static async Task<string> RedeemGameSessionAsync(string endpoint, string ticket)
+        {
+            Uri baseUri;
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out baseUri) ||
+                !string.Equals(baseUri.Scheme, "https", StringComparison.OrdinalIgnoreCase))
+            {
+                return "session=FAILED\nsession_error=INVALID_ENDPOINT";
+            }
+
+            try
+            {
+                var payload = new JsonObject
+                {
+                    ["ticket"] = JsonValue.CreateStringValue(ticket)
+                };
+
+                using (var content = new StringContent(payload.Stringify(), Encoding.UTF8, "application/json"))
+                using (var response = await Http.PostAsync(endpoint.TrimEnd('/') + "/api/game/session", content))
+                {
+                    var text = await response.Content.ReadAsStringAsync();
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        return "session=FAILED\nsession_http=" + (int)response.StatusCode;
+                    }
+
+                    var jo = JsonObject.Parse(text);
+                    var token = GetString(jo, "sessionToken");
+                    if (string.IsNullOrWhiteSpace(token))
+                    {
+                        return "session=FAILED\nsession_error=NO_TOKEN";
+                    }
+
+                    SaveGameSessionToken(token);
+
+                    var accountName = "";
+                    IJsonValue accountValue;
+                    if (jo.TryGetValue("account", out accountValue) && accountValue.ValueType == JsonValueType.Object)
+                    {
+                        accountName = GetString(accountValue.GetObject(), "username") ?? "";
+                    }
+
+                    var buildVersion = "";
+                    var buildCl = "";
+                    IJsonValue buildValue;
+                    if (jo.TryGetValue("build", out buildValue) && buildValue.ValueType == JsonValueType.Object)
+                    {
+                        var build = buildValue.GetObject();
+                        buildVersion = GetString(build, "version") ?? "";
+                        buildCl = GetString(build, "cl") ?? "";
+                    }
+
+                    return "session=OK" +
+                           "\naccount=" + accountName +
+                           "\nsession_build=" + buildVersion +
+                           "\nsession_cl=" + buildCl;
+                }
+            }
+            catch (Exception ex)
+            {
+                return "session=FAILED\nsession_error=" + ex.GetType().Name;
+            }
+        }
+
+        private static void SaveGameSessionToken(string token)
+        {
+            try
+            {
+                var vault = new PasswordVault();
+                foreach (var credential in vault.FindAllByResource("ProjectZero.GameSession"))
+                {
+                    try { vault.Remove(credential); } catch { }
+                }
+                vault.Add(new PasswordCredential("ProjectZero.GameSession", "current", token));
+            }
+            catch
+            {
+                // Session is still valid for this activation even if credential persistence is unavailable.
+            }
         }
 
         private static async Task<string> ReadAndVerifyContentStateAsync()
@@ -102,6 +195,24 @@ namespace ProjectZeroClient
             {
                 return "content=UNAVAILABLE\ncontent_error=" + ex.GetType().Name;
             }
+        }
+
+        private static string QueryValue(Uri uri, string key)
+        {
+            var query = uri.Query;
+            if (string.IsNullOrWhiteSpace(query)) return null;
+            if (query.StartsWith("?")) query = query.Substring(1);
+
+            foreach (var part in query.Split('&'))
+            {
+                var bits = part.Split(new[] { '=' }, 2);
+                if (bits.Length == 0) continue;
+                var name = Uri.UnescapeDataString(bits[0] ?? "");
+                if (!string.Equals(name, key, StringComparison.OrdinalIgnoreCase)) continue;
+                return bits.Length > 1 ? Uri.UnescapeDataString(bits[1] ?? "") : "";
+            }
+
+            return null;
         }
 
         private static string GetString(JsonObject jo, string key)
