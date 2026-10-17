@@ -1,0 +1,1 @@
+<Application x:Class="ProjectZeroClient.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Application.Resources><SolidColorBrush x:Key="Bg" Color="#06050A"/><SolidColorBrush x:Key="Fg" Color="#F3F0F7"/><SolidColorBrush x:Key="Gold" Color="#D9B76C"/></Application.Resources></Application>
