@@ -9,114 +9,154 @@
     RequiresPointer="Never"
     XYFocusKeyboardNavigation="Enabled">
 
-    <Grid Padding="54,34,54,30">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="74" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="58" />
-        </Grid.RowDefinitions>
+    <Grid>
+        <Image Source="https://cdn2.unrealengine.com/Fortnite%2Fblog%2Ftake-to-the-skies-in-season-7%2FBR07_News_Featured_16_9-1920x1080-c8c58d82b2986bf9615c839d53bb7763c06895c5.jpg"
+               Stretch="UniformToFill" Opacity="0.88" />
+        <Rectangle Fill="{StaticResource PzHeroScrim}" />
+        <Rectangle Fill="#56070C13" />
 
-        <Grid Grid.Row="0">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="15">
-                <controls:BrandMark Width="43" Height="43" />
-                <StackPanel VerticalAlignment="Center" Spacing="1">
-                    <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="21" />
-                    <TextBlock Text="CONTENT DELIVERY" Style="{StaticResource PzMono}" FontSize="10" />
+        <Grid Padding="58,38,58,32">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="78" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="62" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="15">
+                    <controls:BrandMark Width="46" Height="46" />
+                    <StackPanel VerticalAlignment="Center" Spacing="0">
+                        <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="23" />
+                        <TextBlock Text="SEASON 7 / CONTENT DELIVERY" Style="{StaticResource PzMono}" FontSize="10" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="10">
-                <Ellipse x:Name="StateDot" Width="8" Height="8" Fill="{StaticResource PzVioletBrightBrush}" />
-                <TextBlock x:Name="TopStateText" Text="PREPARING" Style="{StaticResource PzMono}" FontSize="10" VerticalAlignment="Center" />
-            </StackPanel>
-        </Grid>
-        <Border Grid.Row="0" Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Bottom" />
+                <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Background="#B00C121A" BorderBrush="#669CB2C9" BorderThickness="1"
+                        CornerRadius="2" Padding="14,8">
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <Ellipse x:Name="StateDot" Width="8" Height="8"
+                                 Fill="{StaticResource PzVioletBrightBrush}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TopStateText" Text="PREPARING"
+                                   Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="White" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
-        <Grid Grid.Row="1" Margin="0,30,0,26">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.55*" />
-                <ColumnDefinition Width="0.75*" />
-            </Grid.ColumnDefinitions>
+            <Grid Grid.Row="1" Margin="0,24,0,26">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.42*" />
+                    <ColumnDefinition Width="0.72*" />
+                </Grid.ColumnDefinitions>
 
-            <StackPanel VerticalAlignment="Center" MaxWidth="760" HorizontalAlignment="Left" Margin="0,0,42,0">
-                <TextBlock Text="SEASON 7 CONTENT" Style="{StaticResource PzEyebrow}" />
-                <TextBlock x:Name="BuildTitle" Text="FORTNITE 7.00"
-                           Style="{StaticResource PzDisplay}" FontSize="58" Margin="0,8,0,0" />
-                <TextBlock x:Name="BuildSubtitle" Text="CL-4629139 · VERIFIED CONTENT"
-                           Style="{StaticResource PzMono}" FontSize="12" />
+                <StackPanel VerticalAlignment="Center" MaxWidth="780" Margin="0,0,46,0">
+                    <TextBlock Text="RESTORE THE ORIGINAL BUILD" Style="{StaticResource PzEyebrow}" />
+                    <TextBlock x:Name="BuildTitle" Text="FORTNITE 7.00"
+                               Style="{StaticResource PzDisplay}" FontSize="64" Margin="0,5,0,0" />
+                    <TextBlock x:Name="BuildSubtitle" Text="CL-4629139 / VERIFIED PRIVATE CONTENT"
+                               Style="{StaticResource PzMono}" FontSize="12" Foreground="#FFE0E8F2" />
 
-                <TextBlock x:Name="DownloadStateText" Text="CHECKING CONTENT MANIFEST"
-                           Style="{StaticResource PzMono}" FontSize="12" Foreground="{StaticResource PzTextBrush}"
-                           Margin="0,38,0,0" />
+                    <Border Background="#D90B1018" BorderBrush="#789FB6CF" BorderThickness="1"
+                            CornerRadius="2" Margin="0,30,0,0" Padding="22,18"
+                            MaxWidth="700" HorizontalAlignment="Left">
+                        <StackPanel>
+                            <Grid>
+                                <TextBlock x:Name="DownloadStateText" Text="CHECKING CONTENT MANIFEST"
+                                           FontFamily="Segoe UI Semibold" FontSize="15" Foreground="White" />
+                                <TextBlock x:Name="PercentText" Text="0%" Style="{StaticResource PzDisplay}"
+                                           FontSize="30" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
 
-                <Grid x:Name="ProgressTrack" Height="10" Width="640" HorizontalAlignment="Left"
-                      Margin="0,16,0,0" Background="#FF1B1B23">
-                    <Rectangle x:Name="DownloadProgressFill" Width="0" Height="10" HorizontalAlignment="Left"
-                               Fill="{StaticResource PzBarGradient}" />
-                </Grid>
+                            <Grid x:Name="ProgressTrack" Height="11" HorizontalAlignment="Stretch"
+                                  Margin="0,16,0,0" Background="#87364A5E">
+                                <Rectangle x:Name="DownloadProgressFill" Width="0" Height="11"
+                                           HorizontalAlignment="Left" Fill="{StaticResource PzBarGradient}" />
+                            </Grid>
 
-                <Grid Width="640" HorizontalAlignment="Left" Margin="0,12,0,0">
-                    <TextBlock x:Name="PercentText" Text="0%" Style="{StaticResource PzDisplay}" FontSize="30" />
-                    <TextBlock x:Name="BytesText" Text="0 MB / —" Style="{StaticResource PzMono}" FontSize="11"
-                               HorizontalAlignment="Right" VerticalAlignment="Center" />
-                </Grid>
+                            <Grid Margin="0,11,0,0">
+                                <TextBlock x:Name="BytesText" Text="0 MB / —" Style="{StaticResource PzMono}"
+                                           FontSize="11" Foreground="#FFE0E7F0" />
+                                <TextBlock x:Name="StorageStateText" Text="STORAGE CHECK PENDING"
+                                           Style="{StaticResource PzMono}" FontSize="11"
+                                           HorizontalAlignment="Right" Foreground="{StaticResource PzIceBrush}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
-                <TextBlock x:Name="DetailText"
-                           Text="Project Zero verifies every downloaded file before it is made available to the client."
-                           Style="{StaticResource PzMono}" FontSize="11" TextWrapping="Wrap"
-                           MaxWidth="640" HorizontalAlignment="Left" Margin="0,20,0,0" LineHeight="19" />
+                    <TextBlock x:Name="DetailText"
+                               Text="Project Zero verifies every downloaded file before it is made available to the client."
+                               FontFamily="Segoe UI" FontSize="13" Foreground="#FFE3EAF2"
+                               TextWrapping="Wrap" MaxWidth="690" HorizontalAlignment="Left"
+                               Margin="0,18,0,0" LineHeight="21" />
 
-                <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,25,0,0">
-                    <Button x:Name="RetryButton" Content="RETRY" Visibility="Collapsed"
-                            Style="{StaticResource PzButton}" Click="Retry_Click" />
-                    <Button x:Name="ContinueButton" Content="CONTINUE" Visibility="Collapsed"
-                            Style="{StaticResource PzButton}" Click="Continue_Click" />
-                    <Button x:Name="CancelButton" Content="CANCEL" Visibility="Collapsed"
-                            Style="{StaticResource PzGhostButton}" Click="Cancel_Click" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,24,0,0">
+                        <Button x:Name="RetryButton" Content="RETRY" Visibility="Collapsed"
+                                Style="{StaticResource PzButton}" Click="Retry_Click" />
+                        <Button x:Name="ContinueButton" Content="CONTINUE" Visibility="Collapsed"
+                                Style="{StaticResource PzButton}" Click="Continue_Click" />
+                        <Button x:Name="CancelButton" Content="CANCEL" Visibility="Collapsed"
+                                Style="{StaticResource PzGhostButton}" Click="Cancel_Click" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
 
-            <Border Grid.Column="1" Style="{StaticResource PzPanel}" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="BUILD" Style="{StaticResource PzEyebrow}" />
-                    <Grid Margin="0,22,0,0">
-                        <TextBlock Text="VERSION" Style="{StaticResource PzMono}" FontSize="10" />
-                        <TextBlock x:Name="VersionValue" Text="7.00" Style="{StaticResource PzMono}" FontSize="10"
-                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
-                    </Grid>
-                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
-                    <Grid>
-                        <TextBlock Text="CHANGE LIST" Style="{StaticResource PzMono}" FontSize="10" />
-                        <TextBlock x:Name="ClValue" Text="4629139" Style="{StaticResource PzMono}" FontSize="10"
-                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
-                    </Grid>
-                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
-                    <Grid>
-                        <TextBlock Text="CURRENT FILE" Style="{StaticResource PzMono}" FontSize="10" />
-                        <TextBlock x:Name="FileValue" Text="—" Style="{StaticResource PzMono}" FontSize="10"
-                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="205" />
-                    </Grid>
-                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
-                    <Grid>
-                        <TextBlock Text="INTEGRITY" Style="{StaticResource PzMono}" FontSize="10" />
-                        <TextBlock x:Name="IntegrityValue" Text="PENDING" Style="{StaticResource PzMono}" FontSize="10"
-                                   Foreground="{StaticResource PzVioletBrightBrush}" HorizontalAlignment="Right" />
-                    </Grid>
-                    <TextBlock Text="The launcher restores the authorized build into ProjectZeroContent using the original Engine/ and FortniteGame/ paths."
-                               Style="{StaticResource PzMono}" FontSize="10" TextWrapping="Wrap" LineHeight="18"
-                               Margin="0,24,0,0" />
+                <Border Grid.Column="1" VerticalAlignment="Center"
+                        Background="#E40B1119" BorderBrush="#88A8BED5" BorderThickness="1"
+                        CornerRadius="2" Padding="26">
+                    <StackPanel>
+                        <TextBlock Text="INSTALL CHECK" Style="{StaticResource PzEyebrow}" />
+                        <TextBlock Text="This Xbox is checked before the Season 7 download begins."
+                                   FontFamily="Segoe UI" FontSize="12" Foreground="#FFD7E0EB"
+                                   TextWrapping="Wrap" Margin="0,8,0,18" />
+
+                        <Grid>
+                            <TextBlock Text="BUILD" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock x:Name="VersionValue" Text="7.00" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="White" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                        <Grid>
+                            <TextBlock Text="CHANGE LIST" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock x:Name="ClValue" Text="4629139" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="White" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                        <Grid>
+                            <TextBlock Text="REQUIRED" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock x:Name="RequiredValue" Text="—" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="White" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                        <Grid>
+                            <TextBlock Text="FREE SPACE" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock x:Name="StorageValue" Text="CHECKING" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="{StaticResource PzIceBrush}" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                        <Grid>
+                            <TextBlock Text="CURRENT FILE" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock x:Name="FileValue" Text="—" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="White" HorizontalAlignment="Right"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                        <Grid>
+                            <TextBlock Text="INTEGRITY" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock x:Name="IntegrityValue" Text="PENDING" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="{StaticResource PzVioletBrightBrush}" HorizontalAlignment="Right" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="2">
+                <Border Height="1" Background="#6A9CB2C9" VerticalAlignment="Top" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="28">
+                    <TextBlock Text="D-PAD / LEFT STICK  NAVIGATE" Style="{StaticResource PzMono}" Foreground="White" />
+                    <TextBlock Text="A  SELECT" Style="{StaticResource PzMono}" Foreground="White" />
                 </StackPanel>
-            </Border>
-        </Grid>
-
-        <Grid Grid.Row="2">
-            <Border Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Top" />
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="24">
-                <TextBlock Text="◀▶▲▼  D-PAD / LEFT STICK" Style="{StaticResource PzMono}" />
-                <TextBlock Text="A  SELECT" Style="{StaticResource PzMono}" />
-            </StackPanel>
-            <TextBlock Text="BACKGROUND TRANSFER · SHA-256" Style="{StaticResource PzMono}"
-                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+                <TextBlock Text="BACKGROUND TRANSFER / SHA-256" Style="{StaticResource PzMono}"
+                           Foreground="#FFDCE6F0" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
         </Grid>
     </Grid>
 </Page>
