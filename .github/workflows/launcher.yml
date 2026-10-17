@@ -83,6 +83,16 @@ jobs:
         run: |
           $dep = Join-Path $PWD 'XboxDependencies'
           New-Item -ItemType Directory -Force -Path $dep | Out-Null
+
+          # First copy the framework packages Visual Studio generated for this exact app.
+          $generated = Get-ChildItem -Path (Join-Path $PWD 'AppPackages') -Recurse -File -Filter '*.appx' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike 'ProjectZero*' }
+          foreach ($file in $generated) {
+            Copy-Item $file.FullName (Join-Path $dep $file.Name) -Force
+            Write-Host "Collected generated dependency $($file.Name)"
+          }
+
+          # Fall back to installed SDK/NuGet locations for anything not emitted beside the package.
           $patterns = @(
             'Microsoft.NET.CoreFramework.Debug.2.2.appx',
             'Microsoft.NET.CoreFramework.2.2.appx',
@@ -97,8 +107,15 @@ jobs:
             "${env:ProgramFiles(x86)}\Microsoft Visual Studio",
             "$env:USERPROFILE\.nuget\packages"
           ) | Where-Object { Test-Path $_ }
+
           foreach ($pattern in $patterns) {
-            $match = foreach ($root in $roots) { Get-ChildItem $root -Recurse -File -Filter $pattern -ErrorAction SilentlyContinue } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            $already = Get-ChildItem $dep -File -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($already) { continue }
+            $candidates = @()
+            foreach ($root in $roots) {
+              $candidates += @(Get-ChildItem $root -Recurse -File -Filter $pattern -ErrorAction SilentlyContinue)
+            }
+            $match = $candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($match) {
               Copy-Item $match.FullName (Join-Path $dep $match.Name) -Force
               Write-Host "Collected $($match.Name) from $($match.FullName)"
