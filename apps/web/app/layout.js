@@ -1,5 +1,6 @@
 import './globals.css';
 import './theme.css';
+import './brand-font.css';
 import './home.css';
 import Link from 'next/link';
 import Brand from '@/components/Brand';
