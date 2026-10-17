@@ -131,7 +131,7 @@ namespace ProjectZero.Services
 
         private static string GetString(JsonObject jo, string key)
         {
-            JsonValue value;
+            IJsonValue value;
             if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.String)
             {
                 return value.GetString();
@@ -142,7 +142,7 @@ namespace ProjectZero.Services
 
         private static long GetLong(JsonObject jo, string key)
         {
-            JsonValue value;
+            IJsonValue value;
             if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Number)
             {
                 return (long)value.GetNumber();
@@ -153,7 +153,7 @@ namespace ProjectZero.Services
 
         private static JsonObject GetObject(JsonObject jo, string key)
         {
-            JsonValue value;
+            IJsonValue value;
             if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Object)
             {
                 return value.GetObject();
@@ -164,7 +164,7 @@ namespace ProjectZero.Services
 
         private static JsonArray GetArray(JsonObject jo, string key)
         {
-            JsonValue value;
+            IJsonValue value;
             if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Array)
             {
                 return value.GetArray();
