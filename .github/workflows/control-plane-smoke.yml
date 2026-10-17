@@ -40,7 +40,8 @@ jobs:
             -d '{"deviceName":"CI smoke console","platform":"xbox","appVersion":"ci"}')
           CODE=$(jq -er .code <<<"$START")
           POLL=$(jq -er .pollToken <<<"$START")
-          jq -e '.linkUrl | test("/link\\?code=")' <<<"$START" >/dev/null
+          jq -e '.linkUrl | startswith("https://") and (test("localhost") | not) and test("/link\\?code=")' <<<"$START" >/dev/null
+          echo "linkUrl=$(jq -r .linkUrl <<<"$START")"
           echo "code=$CODE"
 
           INSPECT=$(curl -fsS -X POST "$BASE/api/link/inspect" \
