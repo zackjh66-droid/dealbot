@@ -7,6 +7,7 @@ import { upload } from '@vercel/blob/client';
 
 const PREFIX = 'season7/7.00/4629139/';
 const HASH_CHUNK = 16 * 1024 * 1024;
+const ARCHIVE_PART_SIZE = 64 * 1024 * 1024;
 const UPLOAD_ATTEMPTS = 4;
 
 function normalizeRelativePath(value) {
@@ -40,6 +41,16 @@ function formatBytes(bytes) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isLocalFileError(error) {
+  const name = String(error?.name || '');
+  const message = String(error?.message || '').toLowerCase();
+  return name === 'NotReadableError'
+    || name === 'NotFoundError'
+    || message.includes('requested file could not be read')
+    || message.includes('requested file or directory could not be found')
+    || message.includes('file or directory could not be found');
 }
 
 async function ensureReadPermission(handle) {
@@ -101,12 +112,24 @@ function archiveEntry(file, handle = null) {
   };
 }
 
+function archivePartRoot(entry) {
+  return `${entry.relativePath}.${entry.size}.parts`;
+}
+
+function archivePartPath(entry, index) {
+  return `${archivePartRoot(entry)}/${String(index + 1).padStart(5, '0')}.part`;
+}
+
+function archivePartsManifestPath(entry) {
+  return `${entry.relativePath}.${entry.size}.parts.json`;
+}
+
 async function materializeEntry(entry) {
   if (entry.handle) {
     await ensureReadPermission(entry.handle);
     const file = await entry.handle.getFile();
-    if (file.size !== entry.size || file.lastModified !== entry.lastModified) {
-      throw new Error('Local file changed after it was selected. Re-select it before continuing.');
+    if (file.size !== entry.size) {
+      throw new Error('Local file size changed after it was selected. Re-select it before continuing.');
     }
     return file;
   }
@@ -114,13 +137,14 @@ async function materializeEntry(entry) {
   throw new Error('Local file handle is unavailable.');
 }
 
-async function hashFile(file, onProgress) {
+async function hashBlob(blob, onProgress) {
   const hash = sha256.create();
-  if (file.size === 0) return bytesToHex(hash.digest());
+  if (blob.size === 0) return bytesToHex(hash.digest());
 
-  if (typeof file.stream === 'function') {
-    const reader = file.stream().getReader();
+  if (typeof blob.stream === 'function') {
+    const reader = blob.stream().getReader();
     let loaded = 0;
+    let lastUi = 0;
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -128,20 +152,27 @@ async function hashFile(file, onProgress) {
         if (value?.byteLength) {
           hash.update(value);
           loaded += value.byteLength;
-          onProgress?.((loaded / file.size) * 100);
+          const now = performance.now();
+          if (now - lastUi > 120 || loaded === blob.size) {
+            onProgress?.((loaded / blob.size) * 100);
+            lastUi = now;
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
         }
       }
+      onProgress?.(100);
       return bytesToHex(hash.digest());
     } finally {
       try { reader.releaseLock(); } catch { /* no-op */ }
     }
   }
 
-  for (let offset = 0; offset < file.size; offset += HASH_CHUNK) {
-    const end = Math.min(file.size, offset + HASH_CHUNK);
-    const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer());
+  for (let offset = 0; offset < blob.size; offset += HASH_CHUNK) {
+    const end = Math.min(blob.size, offset + HASH_CHUNK);
+    const chunk = new Uint8Array(await blob.slice(offset, end).arrayBuffer());
     hash.update(chunk);
-    onProgress?.((end / file.size) * 100);
+    onProgress?.((end / blob.size) * 100);
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
   return bytesToHex(hash.digest());
 }
@@ -151,12 +182,10 @@ async function hashEntry(entry, onProgress) {
   for (let attempt = 0; attempt < (entry.handle ? 2 : 1); attempt += 1) {
     try {
       const file = await materializeEntry(entry);
-      return await hashFile(file, onProgress);
+      return await hashBlob(file, onProgress);
     } catch (error) {
       lastError = error;
-      if (!(error?.name === 'NotReadableError' || String(error?.message || '').includes('requested file could not be read'))) {
-        throw error;
-      }
+      if (!isLocalFileError(error)) throw error;
     }
   }
   throw lastError || new Error('Unable to read local file.');
@@ -198,6 +227,24 @@ async function uploadEntryWithRetry(pathname, entry, options, onRetry) {
   throw lastError || new Error('Upload failed');
 }
 
+async function uploadArchivePartWithRetry(pathname, entry, start, end, options, onRetry) {
+  let lastError;
+  for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      const file = await materializeEntry(entry);
+      const part = file.slice(start, end, 'application/octet-stream');
+      if (part.size !== end - start) throw new Error('Could not read the expected RAR chunk size.');
+      return await upload(pathname, part, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= UPLOAD_ATTEMPTS) break;
+      onRetry?.(attempt, error);
+      await sleep(Math.min(4000, 750 * (2 ** (attempt - 1))));
+    }
+  }
+  throw lastError || new Error('RAR part upload failed');
+}
+
 export default function ContentAdminPage() {
   const folderInputRef = useRef(null);
   const archiveInputRef = useRef(null);
@@ -215,6 +262,9 @@ export default function ContentAdminPage() {
 
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const archiveMode = selectionMode.startsWith('ARCHIVE');
+  const workTotal = archiveMode && files[0]
+    ? Math.ceil(files[0].size / ARCHIVE_PART_SIZE)
+    : files.length;
 
   function resetSelection(selected, mode) {
     setFiles(selected.sort((a, b) => a.relativePath.localeCompare(b.relativePath)));
@@ -308,13 +358,117 @@ export default function ContentAdminPage() {
     }
   }
 
-  async function startUpload() {
-    if (!key.trim() || !files.length || running || locked) return;
-    const uploadKey = key.trim();
-    setRunning(true);
-    setCompleted(0);
-    setResumed(0);
-    setFailed([]);
+  async function startArchiveUpload(uploadKey) {
+    const entry = files[0];
+    const partCount = Math.ceil(entry.size / ARCHIVE_PART_SIZE);
+    const parts = [];
+    let done = 0;
+    let reused = 0;
+
+    for (let index = 0; index < partCount; index += 1) {
+      const start = index * ARCHIVE_PART_SIZE;
+      const end = Math.min(entry.size, start + ARCHIVE_PART_SIZE);
+      const partSize = end - start;
+      const relativePath = archivePartPath(entry, index);
+      const pathname = PREFIX + relativePath;
+      setCurrent(`RAR part ${index + 1} / ${partCount} · ${formatBytes(start)}–${formatBytes(end)}`);
+      setPhase('CHECKING PART');
+      setCurrentPct((index / partCount) * 100);
+
+      const existing = await getRemoteStatus(uploadKey, relativePath, partSize);
+      if (existing.locked) {
+        setLocked(true);
+        throw new Error('Season 7 content is already finalized and locked.');
+      }
+
+      if (existing.exists && existing.sizeMatches) {
+        parts.push({ path: relativePath, size: partSize });
+        done += 1;
+        reused += 1;
+        setCompleted(done);
+        setResumed(reused);
+        setCurrentPct((done / partCount) * 100);
+        continue;
+      }
+
+      setPhase('HASHING PART');
+      const file = await materializeEntry(entry);
+      const localPart = file.slice(start, end, 'application/octet-stream');
+      const digest = await hashBlob(localPart, (percentage) => {
+        setCurrentPct(((index + (percentage / 100)) / partCount) * 100);
+      });
+
+      setPhase('UPLOADING PART');
+      await uploadArchivePartWithRetry(
+        pathname,
+        entry,
+        start,
+        end,
+        {
+          access: 'private',
+          handleUploadUrl: '/api/content/upload',
+          multipart: false,
+          clientPayload: JSON.stringify({
+            key: uploadKey,
+            relativePath,
+            size: partSize,
+            sha256: digest
+          }),
+          onUploadProgress: ({ percentage }) => {
+            setCurrentPct(((index + (Number(percentage || 0) / 100)) / partCount) * 100);
+          }
+        },
+        (attempt) => setPhase(`RETRY PART ${attempt}/${UPLOAD_ATTEMPTS - 1}`)
+      );
+
+      setPhase('VERIFYING PART');
+      const verified = await getRemoteStatus(uploadKey, relativePath, partSize);
+      if (!verified.exists || !verified.sizeMatches) {
+        throw new Error(`RAR part ${index + 1} could not be verified in private storage.`);
+      }
+
+      parts.push({ path: relativePath, size: partSize });
+      done += 1;
+      setCompleted(done);
+      setCurrentPct((done / partCount) * 100);
+    }
+
+    setPhase('WRITING ARCHIVE MAP');
+    setCurrent('Saving resumable RAR parts manifest');
+    const partsManifest = {
+      schema: 1,
+      build: '7.00',
+      cl: '4629139',
+      archiveName: entry.relativePath.split('/').pop(),
+      archiveSize: entry.size,
+      partSize: ARCHIVE_PART_SIZE,
+      partCount,
+      parts
+    };
+    const manifestBlob = new Blob([JSON.stringify(partsManifest)], { type: 'application/json' });
+    const manifestDigest = await hashBlob(manifestBlob);
+    const manifestRelativePath = archivePartsManifestPath(entry);
+    const manifestStatus = await getRemoteStatus(uploadKey, manifestRelativePath, manifestBlob.size);
+    if (!(manifestStatus.exists && manifestStatus.sizeMatches)) {
+      await upload(PREFIX + manifestRelativePath, manifestBlob, {
+        access: 'private',
+        handleUploadUrl: '/api/content/upload',
+        multipart: false,
+        clientPayload: JSON.stringify({
+          key: uploadKey,
+          relativePath: manifestRelativePath,
+          size: manifestBlob.size,
+          sha256: manifestDigest
+        })
+      });
+    }
+
+    setPhase('ARCHIVE STORED');
+    setCurrent(`RAR stored as ${partCount} resumable parts · ${formatBytes(entry.size)}`);
+    setCurrentPct(100);
+  }
+
+  async function startFolderUpload(uploadKey) {
     const failures = [];
     const manifestFiles = [];
     let done = 0;
@@ -367,9 +521,7 @@ export default function ContentAdminPage() {
                 setCurrentPct(Math.max(0, Math.min(100, Number(percentage || 0))));
               }
             },
-            (attempt) => {
-              setPhase(`RETRY ${attempt}/${UPLOAD_ATTEMPTS - 1}`);
-            }
+            (attempt) => setPhase(`RETRY ${attempt}/${UPLOAD_ATTEMPTS - 1}`)
           );
         } catch (uploadError) {
           const recovered = await getRemoteStatus(uploadKey, relativePath, entry.size);
@@ -389,55 +541,55 @@ export default function ContentAdminPage() {
         done += 1;
         setCompleted(done);
       } catch (error) {
-        let message = error?.message || 'Upload failed';
-        if (error?.name === 'NotReadableError' || message.includes('requested file could not be read')) {
-          if (archiveMode) {
-            message = 'ChromeOS could not keep the RAR file readable. Move the .rar into local Downloads/My files, re-select it with Select .RAR archive, then resume.';
-          } else {
-            message = selectionMode === 'PERSISTENT'
-              ? 'ChromeOS still cannot open this local file through its persistent folder handle. Move the extracted Fortnite 7.00 folder to local Downloads/My files (not Google Drive, Linux files, a network share, or read-only media), then select it again.'
-              : 'This folder was selected with Chrome\'s legacy file picker. Use the persistent folder picker instead; it re-opens each PAK from a FileSystemFileHandle and is designed for multi-GB files.';
-          }
-        } else if (message.includes('Failed to retrieve the client token')) {
-          message = 'Upload token failed after automatic retries. Press Resume upload; files already stored will be detected and skipped.';
-        }
-        failures.push({ path: relativePath, error: message });
-        setFailed([...failures]);
-        break;
+        failures.push({ path: relativePath, error: error?.message || 'Upload failed' });
+        throw Object.assign(error instanceof Error ? error : new Error('Upload failed'), { failures });
       }
     }
 
-    if (!failures.length && manifestFiles.length === files.length) {
+    setPhase('FINALIZING');
+    setCurrent('Creating immutable Season 7 manifest');
+    setCurrentPct(100);
+    const response = await fetch('/api/content/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: uploadKey, files: manifestFiles })
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body?.error || 'Finalization failed');
+    setLocked(true);
+    setPhase('LOCKED');
+    setCurrent(`LOCKED · ${body.fileCount} files · ${formatBytes(body.totalSize)}`);
+  }
+
+  async function startUpload() {
+    if (!key.trim() || !files.length || running || locked) return;
+    const uploadKey = key.trim();
+    setRunning(true);
+    setCompleted(0);
+    setResumed(0);
+    setFailed([]);
+
+    try {
       if (archiveMode) {
-        setPhase('ARCHIVE STORED');
-        setCurrent(`RAR stored privately · ${formatBytes(totalBytes)}`);
-        setCurrentPct(100);
+        await startArchiveUpload(uploadKey);
       } else {
-        try {
-          setPhase('FINALIZING');
-          setCurrent('Creating immutable Season 7 manifest');
-          setCurrentPct(100);
-          const response = await fetch('/api/content/finalize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: uploadKey, files: manifestFiles })
-          });
-          const body = await response.json();
-          if (!response.ok) throw new Error(body?.error || 'Finalization failed');
-          setLocked(true);
-          setPhase('LOCKED');
-          setCurrent(`LOCKED · ${body.fileCount} files · ${formatBytes(body.totalSize)}`);
-        } catch (error) {
-          failures.push({ path: 'FINAL MANIFEST', error: error?.message || 'Finalization failed' });
-          setFailed([...failures]);
-          setPhase('FAILED');
-        }
+        await startFolderUpload(uploadKey);
       }
-    } else if (failures.length) {
+    } catch (error) {
+      let message = error?.message || 'Upload failed';
+      if (isLocalFileError(error)) {
+        message = archiveMode
+          ? 'ChromeOS lost access to the local RAR. Re-select the SAME .rar and press Resume upload. Finished 64 MB parts stay stored and will be skipped, so it resumes instead of restarting from zero.'
+          : 'ChromeOS lost access to a local game file. Move the extracted folder to local Downloads/My files, re-select it, then resume.';
+      } else if (message.includes('Failed to retrieve the client token')) {
+        message = 'Upload token failed after automatic retries. Press Resume upload; files already stored will be detected and skipped.';
+      }
+      const path = archiveMode ? files[0]?.relativePath || 'ARCHIVE' : error?.failures?.[0]?.path || current || 'UPLOAD';
+      setFailed([{ path, error: message }]);
       setPhase('FAILED');
+    } finally {
+      setRunning(false);
     }
-
-    setRunning(false);
   }
 
   return (
@@ -446,8 +598,8 @@ export default function ContentAdminPage() {
         <span className="eyebrow">Project Zero · private content</span>
         <h1>Season 7 Content Manager</h1>
         <p>
-          On Chromebook you can now upload either the extracted Fortnite 7.00 folder or the original .rar archive.
-          Folder mode creates the Xbox-ready multi-file manifest; RAR mode stores the source archive privately for the next extraction step.
+          Upload the extracted Fortnite 7.00 folder or the original .rar archive. RAR mode now stores the archive as
+          resumable 64 MB parts, so a ChromeOS file-handle failure does not throw away an hour of progress.
         </p>
       </div>
 
@@ -510,10 +662,10 @@ export default function ContentAdminPage() {
         </div>
 
         <div className="rule" />
-        <div className="kv"><span>Files selected</span><b>{files.length}</b></div>
+        <div className="kv"><span>{archiveMode ? 'RAR parts' : 'Files selected'}</span><b>{archiveMode ? workTotal : files.length}</b></div>
         <div className="kv"><span>Total size</span><b>{formatBytes(totalBytes)}</b></div>
         <div className="kv"><span>Selection</span><b>{selectionMode}</b></div>
-        <div className="kv"><span>Ready this run</span><b>{completed} / {files.length}</b></div>
+        <div className="kv"><span>Ready this run</span><b>{completed} / {workTotal}</b></div>
         <div className="kv"><span>Recovered from storage</span><b>{resumed}</b></div>
         <div className="kv"><span>State</span><b>{phase}</b></div>
 
@@ -529,19 +681,19 @@ export default function ContentAdminPage() {
 
         {selectionMode === 'LEGACY' ? (
           <div className="alert" style={{ marginTop: 22 }}>
-            This browser fell back to legacy folder selection. For the 4+ GB PAKs, use current desktop Chrome/ChromeOS so the persistent folder picker is available.
+            This browser fell back to legacy folder selection. For the largest files, current Chrome/ChromeOS with persistent file handles is recommended.
           </div>
         ) : null}
 
         {archiveMode ? (
           <div className="alert" style={{ marginTop: 22 }}>
-            <b>RAR source mode.</b> The archive is uploaded as one private multipart Blob, so you do not need to extract it on the Chromebook first. This does not create the Xbox content manifest yet: the RAR still has to be unpacked into Engine/ and FortniteGame/ files before the current Xbox downloader can use it.
+            <b>Resumable RAR mode.</b> The archive is split into independent 64 MB private Blob objects. If ChromeOS loses the file handle, re-select the same RAR and Resume upload; completed parts are checked and skipped. The archive will be reconstructed in the cloud before Xbox content extraction.
           </div>
         ) : null}
 
         {locked ? (
           <div className="alert" style={{ marginTop: 22 }}>
-            <b>Season 7 v7.00 is finalized.</b> Xbox clients can now request the signed multi-file manifest. This web uploader will not replace or append to the finalized build.
+            <b>Season 7 v7.00 is finalized.</b> Xbox clients can now request the signed multi-file manifest.
           </div>
         ) : null}
 
@@ -557,7 +709,7 @@ export default function ContentAdminPage() {
         ) : null}
 
         <p className="note" style={{ marginTop: 22 }}>
-          Already-uploaded data is recovered from private storage. Large files use multipart upload. SHA-256 is calculated locally so the exact bytes can be checked later. Only upload files you are authorized to store.
+          Existing completed files or RAR parts are reused from private storage. Only upload files you are authorized to store.
         </p>
       </div>
     </div>
