@@ -1,6 +1,7 @@
 import { get, issueSignedToken, presignUrl } from '@vercel/blob';
 import { accountFromRequest } from '@/lib/session';
 import { json } from '@/lib/security';
+import { isBlobNotFound } from '@/lib/blob-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,11 +62,9 @@ export async function GET(req) {
       });
     }
   } catch (error) {
-    const missing = error?.name === 'BlobNotFoundError' || error?.status === 404 || error?.statusCode === 404;
-    if (!missing) console.error('finalized content manifest failed', error);
+    if (!isBlobNotFound(error)) console.error('finalized content manifest failed', error);
   }
 
-  // Temporary fallback until the extracted build has been uploaded and finalized.
   const url = process.env.SEASON7_CONTENT_URL || '';
   const sha256 = (process.env.SEASON7_CONTENT_SHA256 || '').toLowerCase();
   const size = Number(process.env.SEASON7_CONTENT_SIZE || 0);
