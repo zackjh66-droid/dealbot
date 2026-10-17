@@ -4,10 +4,10 @@ namespace ProjectZero.Services
 {
     public static class AppConfig
     {
-        // Production control plane. Override at runtime by writing a string value
-        // named "apiBase" into ApplicationData.Current.LocalSettings.
-        public const string DefaultBaseUrl = "https://project-zero-delta.vercel.app";
-        public const string AppVersion = "1.0.0";
+        // Public production control plane used by Xbox. Preview deployments stay protected.
+        // Override at runtime by writing a string value named "apiBase" into LocalSettings.
+        public const string DefaultBaseUrl = "https://projectzero7.vercel.app";
+        public const string AppVersion = "1.0.1";
 
         public static string BaseUrl
         {
