@@ -28,6 +28,8 @@ namespace ProjectZeroClient
 
             string protocolState;
             string sessionState = "session=NOT_REQUESTED";
+            string expectedBuild = null;
+            string expectedCl = null;
             try
             {
                 var uri = new Uri(raw);
@@ -37,6 +39,8 @@ namespace ProjectZeroClient
 
                 var ticket = QueryValue(uri, "ticket");
                 var endpoint = QueryValue(uri, "endpoint");
+                expectedBuild = QueryValue(uri, "version");
+                expectedCl = QueryValue(uri, "cl");
                 if (!string.IsNullOrWhiteSpace(ticket) && !string.IsNullOrWhiteSpace(endpoint))
                 {
                     PayloadText.Text = protocolState + "\nsession=CONNECTING\ncontent=WAITING\nruntime=WAITING";
@@ -49,10 +53,11 @@ namespace ProjectZeroClient
             }
 
             PayloadText.Text = protocolState + "\n" + sessionState + "\ncontent=CHECKING\nruntime=WAITING";
-            var contentState = await ReadAndVerifyContentStateAsync();
+            var contentState = await ReadAndVerifyContentStateAsync(expectedBuild, expectedCl);
 
-            var runtimeState = "runtime=WAITING_FOR_CONTENT";
-            if (contentState.StartsWith("content=VERIFIED", StringComparison.Ordinal))
+            var runtimeState = "runtime=WAITING_FOR_SESSION_AND_CONTENT";
+            if (sessionState.StartsWith("session=OK", StringComparison.Ordinal) &&
+                contentState.StartsWith("content=VERIFIED", StringComparison.Ordinal))
             {
                 PayloadText.Text = protocolState + "\n" + sessionState + "\n" + contentState + "\nruntime=LOADING";
                 runtimeState = await RuntimeLoader.TryStartAsync();
@@ -141,7 +146,7 @@ namespace ProjectZeroClient
             }
         }
 
-        private static async Task<string> ReadAndVerifyContentStateAsync()
+        private static async Task<string> ReadAndVerifyContentStateAsync(string expectedBuild, string expectedCl)
         {
             try
             {
@@ -158,20 +163,83 @@ namespace ProjectZeroClient
 
                 var markerText = await FileIO.ReadTextAsync(marker);
                 var jo = JsonObject.Parse(markerText);
+                var mode = GetString(jo, "mode") ?? "archive";
                 var fileName = GetString(jo, "fileName");
                 var build = GetString(jo, "build");
                 var cl = GetString(jo, "cl");
-                var expectedSha = GetString(jo, "sha256");
-                var expectedSize = GetUlong(jo, "size");
 
+                if (!string.IsNullOrWhiteSpace(expectedBuild) &&
+                    !string.Equals(expectedBuild, build, StringComparison.OrdinalIgnoreCase))
+                {
+                    return "content=NOT_VERIFIED\ncontent_error=BUILD_MISMATCH";
+                }
+                if (!string.IsNullOrWhiteSpace(expectedCl) &&
+                    !string.Equals(NormalizeCl(expectedCl), NormalizeCl(cl), StringComparison.OrdinalIgnoreCase))
+                {
+                    return "content=NOT_VERIFIED\ncontent_error=CL_MISMATCH";
+                }
+
+                IJsonValue filesValue;
+                if (string.Equals(mode, "files", StringComparison.OrdinalIgnoreCase) &&
+                    jo.TryGetValue("files", out filesValue) && filesValue.ValueType == JsonValueType.Array)
+                {
+                    var files = filesValue.GetArray();
+                    if (files.Count == 0)
+                    {
+                        return "content=NOT_VERIFIED\ncontent_marker=EMPTY";
+                    }
+
+                    ulong checkedBytes = 0;
+                    uint checkedFiles = 0;
+                    foreach (var entry in files)
+                    {
+                        if (entry.ValueType != JsonValueType.Object)
+                        {
+                            return "content=NOT_VERIFIED\ncontent_marker=INVALID_FILE";
+                        }
+
+                        var fileObject = entry.GetObject();
+                        var path = GetString(fileObject, "path");
+                        var expectedSize = GetUlong(fileObject, "size");
+                        if (string.IsNullOrWhiteSpace(path))
+                        {
+                            return "content=NOT_VERIFIED\ncontent_marker=INVALID_PATH";
+                        }
+
+                        var file = await GetFileByRelativePathAsync(folder, path);
+                        if (file == null)
+                        {
+                            return "content=NOT_VERIFIED\ncontent_error=MISSING_FILE\ncontent_path=" + path;
+                        }
+
+                        var props = await file.GetBasicPropertiesAsync();
+                        if (expectedSize > 0 && props.Size != expectedSize)
+                        {
+                            return "content=NOT_VERIFIED\ncontent_error=SIZE_MISMATCH\ncontent_path=" + path;
+                        }
+
+                        checkedBytes += props.Size;
+                        checkedFiles += 1;
+                    }
+
+                    return "content=VERIFIED" +
+                           "\ncontent_mode=FILES" +
+                           "\ncontent_build=" + (build ?? "") +
+                           "\ncontent_cl=" + (cl ?? "") +
+                           "\ncontent_files=" + checkedFiles +
+                           "\ncontent_bytes=" + checkedBytes;
+                }
+
+                var expectedSha = GetString(jo, "sha256");
+                var archiveSize = GetUlong(jo, "size");
                 if (string.IsNullOrWhiteSpace(fileName))
                 {
                     return "content=NOT_VERIFIED\ncontent_marker=INVALID";
                 }
 
-                var file = await folder.GetFileAsync(fileName);
-                var props = await file.GetBasicPropertiesAsync();
-                if (expectedSize > 0 && props.Size != expectedSize)
+                var archive = await folder.GetFileAsync(fileName);
+                var archiveProps = await archive.GetBasicPropertiesAsync();
+                if (archiveSize > 0 && archiveProps.Size != archiveSize)
                 {
                     return "content=NOT_VERIFIED\ncontent_error=SIZE_MISMATCH";
                 }
@@ -179,7 +247,7 @@ namespace ProjectZeroClient
                 if (!string.IsNullOrWhiteSpace(expectedSha))
                 {
                     string actualSha;
-                    using (var stream = await file.OpenStreamForReadAsync())
+                    using (var stream = await archive.OpenStreamForReadAsync())
                     using (var sha = SHA256.Create())
                     {
                         var hash = await Task.Run(() => sha.ComputeHash(stream));
@@ -193,16 +261,43 @@ namespace ProjectZeroClient
                 }
 
                 return "content=VERIFIED" +
-                       "\ncontent_file=" + file.Name +
+                       "\ncontent_mode=ARCHIVE" +
+                       "\ncontent_file=" + archive.Name +
                        "\ncontent_build=" + (build ?? "") +
                        "\ncontent_cl=" + (cl ?? "") +
-                       "\ncontent_bytes=" + props.Size +
-                       "\ncontent_hash=OK";
+                       "\ncontent_bytes=" + archiveProps.Size;
             }
             catch (Exception ex)
             {
                 return "content=UNAVAILABLE\ncontent_error=" + ex.GetType().Name;
             }
+        }
+
+        private static async Task<StorageFile> GetFileByRelativePathAsync(StorageFolder root, string value)
+        {
+            try
+            {
+                var path = (value ?? string.Empty).Replace('\\', '/').Trim('/');
+                var parts = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0 || parts.Any(part => part == "." || part == ".." || part.Contains(":"))) return null;
+
+                var folder = root;
+                for (var i = 0; i < parts.Length - 1; i++)
+                {
+                    folder = await folder.GetFolderAsync(parts[i]);
+                }
+                return await folder.GetFileAsync(parts[parts.Length - 1]);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string NormalizeCl(string value)
+        {
+            var cl = (value ?? string.Empty).Trim();
+            return cl.StartsWith("CL-", StringComparison.OrdinalIgnoreCase) ? cl.Substring(3) : cl;
         }
 
         private static string QueryValue(Uri uri, string key)
@@ -230,7 +325,6 @@ namespace ProjectZeroClient
             {
                 return value.GetString();
             }
-
             return null;
         }
 
@@ -242,7 +336,6 @@ namespace ProjectZeroClient
                 var number = value.GetNumber();
                 if (number > 0) return (ulong)number;
             }
-
             return 0;
         }
     }
