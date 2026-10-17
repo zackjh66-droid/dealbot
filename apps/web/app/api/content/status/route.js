@@ -1,17 +1,16 @@
-import { timingSafeEqual } from 'node:crypto';
 import { head } from '@vercel/blob';
+import {
+  contentRequestAuthorized,
+  contentResponseHeaders,
+  hasValidContentSession,
+  validContentUploadKey
+} from '../../../../lib/content-upload-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PREFIX = 'season7/7.00/4629139/';
 const FINAL_MANIFEST = PREFIX + '.projectzero-manifest.json';
-
-function sameSecret(a, b) {
-  const left = Buffer.from(String(a || ''));
-  const right = Buffer.from(String(b || ''));
-  return left.length > 0 && left.length === right.length && timingSafeEqual(left, right);
-}
 
 function cleanRelativePath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -34,13 +33,19 @@ async function tryHead(pathname) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    if (!sameSecret(body?.key, process.env.PZ_CONTENT_UPLOAD_KEY)) {
-      return Response.json({ error: 'Invalid content upload key' }, { status: 401 });
+    const suppliedKeyValid = validContentUploadKey(body?.key);
+    const sessionValid = hasValidContentSession(request);
+    if (!contentRequestAuthorized(request, body?.key)) {
+      return Response.json(
+        { error: 'Invalid content upload key. Refresh the page and use the current Project Zero content key.' },
+        { status: 401, headers: contentResponseHeaders() }
+      );
     }
 
+    const headers = contentResponseHeaders({ refreshSession: suppliedKeyValid || sessionValid });
     const finalized = await tryHead(FINAL_MANIFEST);
     if (finalized) {
-      return Response.json({ locked: true }, { headers: { 'Cache-Control': 'no-store' } });
+      return Response.json({ locked: true }, { headers });
     }
 
     const relativePath = cleanRelativePath(body?.path);
@@ -51,7 +56,7 @@ export async function POST(request) {
 
     const blob = await tryHead(PREFIX + relativePath);
     if (!blob) {
-      return Response.json({ locked: false, exists: false }, { headers: { 'Cache-Control': 'no-store' } });
+      return Response.json({ locked: false, exists: false }, { headers });
     }
 
     const actualSize = Number(blob.size ?? -1);
@@ -61,12 +66,12 @@ export async function POST(request) {
       sizeMatches: actualSize === expectedSize,
       size: actualSize,
       etag: blob.etag || ''
-    }, { headers: { 'Cache-Control': 'no-store' } });
+    }, { headers });
   } catch (error) {
     console.error('content status failed', error);
     return Response.json(
       { error: error?.message || 'Could not inspect content file' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      { status: 400, headers: contentResponseHeaders() }
     );
   }
 }
