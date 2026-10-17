@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -8,8 +9,6 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Media.Imaging;
-using Windows.UI.Xaml.Navigation;
-using ProjectZero.Models;
 using ProjectZero.Services;
 
 namespace ProjectZero.Pages
@@ -102,6 +101,8 @@ namespace ProjectZero.Pages
             _timer.Stop();
             ErrorText.Visibility = Visibility.Collapsed;
             RefreshButton.IsEnabled = false;
+            QrImage.Source = null;
+            QrHelpText.Text = "GENERATING A FRESH QR CODE…";
             StatusText.Text = "REQUESTING CODE";
 
             try
@@ -113,7 +114,18 @@ namespace ProjectZero.Pages
                 CodeText.Text = result.Code;
                 CodeText.Foreground = (Brush)Application.Current.Resources["PzTextBrush"];
                 LinkUrlText.Text = result.LinkUrl.Replace("https://", string.Empty).Replace("http://", string.Empty);
-                QrImage.Source = new BitmapImage(new Uri(ApiClient.QrUrl(result.LinkUrl)));
+
+                try
+                {
+                    await LoadQrAsync(result.LinkUrl);
+                    QrHelpText.Text = "SCAN WITH YOUR PHONE CAMERA TO OPEN THE CONSOLE-LINK PAGE.";
+                }
+                catch
+                {
+                    QrImage.Source = null;
+                    QrHelpText.Text = "QR COULD NOT LOAD. USE THE SIX-CHARACTER CODE ABOVE INSTEAD.";
+                }
+
                 StatusText.Text = "WAITING FOR CLAIM";
                 StatusDot.Fill = (Brush)Application.Current.Resources["PzVioletBrightBrush"];
                 _timer.Start();
@@ -121,6 +133,7 @@ namespace ProjectZero.Pages
             catch (Exception)
             {
                 ShowError("CONTROL PLANE UNREACHABLE · CHECK NETWORK AND REFRESH");
+                QrHelpText.Text = "QR WILL APPEAR AFTER A LINK CODE IS CREATED.";
             }
             finally
             {
@@ -128,6 +141,40 @@ namespace ProjectZero.Pages
                 RefreshButton.IsEnabled = true;
                 RefreshButton.Focus(FocusState.Programmatic);
             }
+        }
+
+        private static async Task<BitmapImage> DecodePngAsync(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                throw new InvalidOperationException("QR image was empty.");
+            }
+
+            using (var stream = new InMemoryRandomAccessStream())
+            {
+                using (var writer = new DataWriter(stream))
+                {
+                    writer.WriteBytes(bytes);
+                    await writer.StoreAsync();
+                    await writer.FlushAsync();
+                    writer.DetachStream();
+                }
+
+                stream.Seek(0);
+                var bitmap = new BitmapImage
+                {
+                    DecodePixelWidth = 640,
+                    DecodePixelHeight = 640
+                };
+                await bitmap.SetSourceAsync(stream);
+                return bitmap;
+            }
+        }
+
+        private async Task LoadQrAsync(string linkUrl)
+        {
+            var bytes = await ApiClient.GetQrPngAsync(linkUrl);
+            QrImage.Source = await DecodePngAsync(bytes);
         }
 
         private async void OnTimerTick(object sender, object e)
