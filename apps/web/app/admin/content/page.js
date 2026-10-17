@@ -36,12 +36,13 @@ async function hashFile(file, onProgress) {
   const hash = sha256.create();
   if (file.size === 0) return bytesToHex(hash.digest());
 
+  // Keep the browser reading the selected File continuously. Explicitly yielding with setTimeout
+  // between chunks can cause Chromium to lose access to long-lived File references on some systems.
   for (let offset = 0; offset < file.size; offset += HASH_CHUNK) {
     const end = Math.min(file.size, offset + HASH_CHUNK);
     const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer());
     hash.update(chunk);
     onProgress?.((end / file.size) * 100);
-    await sleep(0);
   }
   return bytesToHex(hash.digest());
 }
@@ -192,7 +193,9 @@ export default function ContentAdminPage() {
         setCompleted(done);
       } catch (error) {
         let message = error?.message || 'Upload failed';
-        if (message.includes('Failed to retrieve the client token')) {
+        if (error?.name === 'NotReadableError' || message.includes('requested file could not be read')) {
+          message = 'Chrome lost permission to read this selected file. Re-select the same local Fortnite 7.00 folder, then press Resume upload. Files already stored will be recovered automatically.';
+        } else if (message.includes('Failed to retrieve the client token')) {
           message = 'Upload token failed after automatic retries. Press the button again; files already stored will be detected and skipped.';
         }
         failures.push({ path: relativePath, error: message });
