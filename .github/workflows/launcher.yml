@@ -14,6 +14,10 @@ on:
       - '.github/workflows/launcher.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   build-msix:
     runs-on: windows-2022
@@ -59,6 +63,8 @@ jobs:
           & $env:MSBUILD ProjectZero.csproj /t:Restore /p:Configuration=Release /p:Platform=x64 /v:minimal
 
       - name: Build and sign bundle
+        id: build
+        continue-on-error: true
         shell: pwsh
         run: |
           & $env:MSBUILD ProjectZero.csproj `
@@ -71,7 +77,25 @@ jobs:
             /p:PackageCertificateKeyFile="$PWD\ProjectZero.pfx" `
             /p:PackageCertificatePassword=$env:SIGN_PW `
             /p:AppxPackageDir="$PWD\AppPackages" `
-            /v:minimal
+            /v:normal *>&1 | Tee-Object -FilePath build.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { Write-Host "MSBuild exit $code"; exit $code }
+
+      - name: Report build failure
+        if: steps.build.outcome == 'failure'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tail = (Get-Content build.log -Tail 80) -join "`n"
+          $body = "MSBuild failed. Last 80 lines:`n``````n$tail`n``````"
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            $body | gh pr comment ${{ github.event.pull_request.number }} --body-file - --repo ${{ github.repository }}
+          } else {
+            $payload = @{ body = $body } | ConvertTo-Json
+            $payload | gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" --input - --method POST | Out-Null
+          }
+          exit 1
 
       - name: Copy certificate beside the bundle
         shell: pwsh
@@ -88,6 +112,7 @@ jobs:
         with:
           name: ProjectZero-UWP
           path: |
+            launcher/ProjectZero/build.log
             launcher/ProjectZero/AppPackages/**/*.msix
             launcher/ProjectZero/AppPackages/**/*.msixbundle
             launcher/ProjectZero/AppPackages/**/*.appx
