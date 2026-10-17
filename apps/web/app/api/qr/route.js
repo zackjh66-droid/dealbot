@@ -7,19 +7,25 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const data = (searchParams.get('data') || '').slice(0, 512);
   if (!data) return new Response('missing data', { status: 400 });
+
   try {
     const png = await QRCode.toBuffer(data, {
       type: 'png',
-      width: 512,
-      margin: 1,
+      width: 640,
+      margin: 4,
       errorCorrectionLevel: 'M',
-      color: { dark: '#08060E', light: '#F7F3FF' }
+      color: {
+        dark: '#000000FF',
+        light: '#FFFFFFFF'
+      }
     });
+
     return new Response(png, {
       status: 200,
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=300'
+        'Cache-Control': 'no-store, max-age=0',
+        'X-Content-Type-Options': 'nosniff'
       }
     });
   } catch {
