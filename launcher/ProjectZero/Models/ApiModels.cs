@@ -28,6 +28,18 @@ namespace ProjectZero.Models
         public string PackageFamilyName { get; set; }
     }
 
+    public class ContentManifest
+    {
+        public bool Available { get; set; }
+        public string Build { get; set; }
+        public string Cl { get; set; }
+        public string FileName { get; set; }
+        public string Url { get; set; }
+        public string Sha256 { get; set; }
+        public ulong Size { get; set; }
+        public string Reason { get; set; }
+    }
+
     public class LinkPollResult
     {
         public string Status { get; set; }
