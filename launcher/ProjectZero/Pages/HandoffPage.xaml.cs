@@ -46,6 +46,7 @@ namespace ProjectZero.Pages
 
             UsernameText.Text = (SessionStore.Username ?? "player").ToUpperInvariant();
             AccountLineText.Text = "ACCOUNT · " + (SessionStore.BuildLabel ?? "SEASON 7");
+            UnlinkButton.Focus(FocusState.Programmatic);
             await RunHandoffAsync();
         }
 
@@ -61,7 +62,7 @@ namespace ProjectZero.Pages
                 SetLog(LogProfile, "PROFILE MOUNTED", true);
                 ProgressFill.Width = 170;
                 ProgressFill.Opacity = 1;
-                await Task.Delay(450);
+                await Task.Delay(300);
 
                 _ticket = await ApiClient.GetTicketAsync(SessionStore.ConsoleToken);
                 var build = _ticket.Build;
@@ -73,12 +74,12 @@ namespace ProjectZero.Pages
                 SetLog(LogBuild, "BUILD RESOLVED " + (build != null ? build.Version : "DEFAULT"), true);
                 ProgressFill.Width = 340;
                 StatusText.Text = "MINTING GAME TICKET";
-                await Task.Delay(450);
+                await Task.Delay(300);
 
                 SetLog(LogTicket, "GAME TICKET MINTED", _ticket.Ticket != null);
                 ProgressFill.Width = 470;
                 StatusText.Text = "HANDING OFF TO CLIENT";
-                await Task.Delay(450);
+                await Task.Delay(300);
 
                 var uri = GameLauncher.BuildUri(_ticket, build);
                 var launched = await GameLauncher.TryLaunchAsync(uri, _ticket);
@@ -91,6 +92,7 @@ namespace ProjectZero.Pages
                     StatusText.Text = "CLIENT LAUNCHED";
                     ClientStateText.Text = "CLIENT RUNNING";
                     ClientStateText.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
+                    UnlinkButton.Focus(FocusState.Programmatic);
                 }
                 else
                 {
@@ -106,6 +108,7 @@ namespace ProjectZero.Pages
                 ClientHelpText.Text = "The console could not reach the control plane. Check the network, then retry.";
                 ClientHelpText.Visibility = Visibility.Visible;
                 RetryButton.Visibility = Visibility.Visible;
+                RetryButton.Focus(FocusState.Programmatic);
             }
             finally
             {
@@ -124,7 +127,7 @@ namespace ProjectZero.Pages
             LogTicket.Foreground = (Brush)Application.Current.Resources["PzMutedBrush"];
             LogHandoff.Foreground = (Brush)Application.Current.Resources["PzMutedBrush"];
             ClientStateText.Text = "AWAITING HANDOFF";
-            ClientStateText.Foreground = (Brush)Application.Current.Resources["PzGoldBrush"];
+            ClientStateText.Foreground = (Brush)Application.Current.Resources["PzVioletBrightBrush"];
             ClientHelpText.Visibility = Visibility.Collapsed;
             RetryButton.Visibility = Visibility.Collapsed;
             StatusText.Text = "NEGOTIATING SESSION";
@@ -140,13 +143,14 @@ namespace ProjectZero.Pages
         private void ShowClientMissing()
         {
             ClientStateText.Text = "CLIENT PACKAGE NOT INSTALLED";
-            ClientStateText.Foreground = (Brush)Application.Current.Resources["PzGoldBrush"];
+            ClientStateText.Foreground = (Brush)Application.Current.Resources["PzVioletBrightBrush"];
             ClientHelpText.Text =
-                "The Project Zero Xbox client package is not installed. Install the signed client package for this " +
-                "console, then retry. Verified Season 7 content will remain stored locally.";
+                "The Project Zero Xbox client package is not installed. Install the signed client package, " +
+                "set it as a GAME in Xbox Dev Mode, then retry. Verified Season 7 content stays stored locally.";
             ClientHelpText.Visibility = Visibility.Visible;
             RetryButton.Visibility = Visibility.Visible;
             StatusText.Text = "AWAITING CLIENT PACKAGE";
+            RetryButton.Focus(FocusState.Programmatic);
         }
 
         private async void Retry_Click(object sender, RoutedEventArgs e)
@@ -170,6 +174,7 @@ namespace ProjectZero.Pages
                     ClientStateText.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
                     ClientHelpText.Visibility = Visibility.Collapsed;
                     RetryButton.Visibility = Visibility.Collapsed;
+                    UnlinkButton.Focus(FocusState.Programmatic);
                 }
             }
             finally

@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Windows.System;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Media.Imaging;
@@ -35,6 +37,7 @@ namespace ProjectZero.Pages
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             StartAnimations();
+            RefreshButton.Focus(FocusState.Programmatic);
 
             if (!string.IsNullOrEmpty(SessionStore.ConsoleToken))
             {
@@ -50,13 +53,22 @@ namespace ProjectZero.Pages
             _timer.Stop();
         }
 
+        private void Page_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.GamepadB || e.Key == VirtualKey.GoBack)
+            {
+                e.Handled = true;
+                Application.Current.Exit();
+            }
+        }
+
         private void StartAnimations()
         {
             var dot = new DoubleAnimation
             {
                 From = 1,
-                To = 0.25,
-                Duration = new Duration(TimeSpan.FromSeconds(1.2)),
+                To = 0.35,
+                Duration = new Duration(TimeSpan.FromSeconds(1.1)),
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever
             };
@@ -65,9 +77,9 @@ namespace ProjectZero.Pages
 
             var slide = new DoubleAnimation
             {
-                From = -180,
-                To = 470,
-                Duration = new Duration(TimeSpan.FromSeconds(2.6)),
+                From = -150,
+                To = 520,
+                Duration = new Duration(TimeSpan.FromSeconds(2.4)),
                 RepeatBehavior = RepeatBehavior.Forever
             };
             Storyboard.SetTarget(slide, PulseTransform);
@@ -103,7 +115,7 @@ namespace ProjectZero.Pages
                 LinkUrlText.Text = result.LinkUrl.Replace("https://", string.Empty).Replace("http://", string.Empty);
                 QrImage.Source = new BitmapImage(new Uri(ApiClient.QrUrl(result.LinkUrl)));
                 StatusText.Text = "WAITING FOR CLAIM";
-                StatusDot.Fill = (Brush)Application.Current.Resources["PzGoldBrush"];
+                StatusDot.Fill = (Brush)Application.Current.Resources["PzVioletBrightBrush"];
                 _timer.Start();
             }
             catch (Exception)
@@ -114,6 +126,7 @@ namespace ProjectZero.Pages
             {
                 _busy = false;
                 RefreshButton.IsEnabled = true;
+                RefreshButton.Focus(FocusState.Programmatic);
             }
         }
 

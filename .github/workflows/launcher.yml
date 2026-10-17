@@ -90,6 +90,10 @@ jobs:
           @"
           PROJECT ZERO - XBOX DEV MODE INSTALL
 
+          IMPORTANT - SET THIS AS A GAME
+          After installing Project Zero in Xbox Developer Mode / Device Portal,
+          configure the package type as GAME, not APP.
+
           Package:
           $($bundle.Name)
 
@@ -100,6 +104,10 @@ jobs:
 
           Do not upload ARM, ARM64 or x86 dependencies.
           Do not put ProjectZero.cer in the Dependencies box.
+
+          Controller:
+          Use the D-pad or LEFT STICK to move focus and A to select.
+          Project Zero disables Xbox mouse-mode emulation in its controller UI.
           "@ | Set-Content (Join-Path $out 'INSTALL.txt')
 
           Write-Host 'Final Xbox install files:'

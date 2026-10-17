@@ -57,10 +57,15 @@ export default async function DownloadsPage() {
         <span className="eyebrow">Xbox Dev Mode</span>
         <h1>Downloads</h1>
         <p>
-          Signed Project Zero packages will appear here as soon as they are published in the public release.
-          The website checks the latest GitHub release automatically, so this page does not need to be manually
-          edited every time a new package ships.
+          Signed Project Zero packages will appear here as soon as they are published. The site checks the latest
+          GitHub release automatically, so download links update with each release.
         </p>
+      </div>
+
+      <div className="alert" style={{ marginTop: 24, maxWidth: 980 }}>
+        <b>Xbox setup: choose GAME, not APP.</b> After installing Project Zero in Xbox Developer Mode / Device Portal,
+        set the package type to <b>Game</b>. The controller-first interface and game-side runtime are designed to run
+        with the title configured as a game.
       </div>
 
       <div className="download-release-bar">
@@ -77,12 +82,12 @@ export default async function DownloadsPage() {
           </div>
           <div className="download-copy">
             <p>
-              The main Xbox Developer Mode launcher. It handles console linking, local content verification,
-              session creation and the handoff to the client package.
+              The controller-first Xbox Developer Mode launcher. It handles console linking, verified content
+              delivery, session creation and the handoff to the client package.
             </p>
             <div className="download-meta">
               <span>Developer Mode required</span>
-              <span>Signed package required</span>
+              <span>Package type: GAME</span>
               <span>{launcher ? launcher.name : 'Build not publicly released'}</span>
             </div>
           </div>
@@ -97,16 +102,16 @@ export default async function DownloadsPage() {
           </div>
           <div className="download-copy">
             <p>
-              Receives the Project Zero launch protocol from the launcher and carries the authenticated handoff
-              into the Xbox-side client workflow.
+              Receives the Project Zero launch protocol from the launcher, validates the authenticated handoff and
+              enters the Xbox-side client workflow.
             </p>
             <div className="download-meta">
               <span>Protocol: projectzero-game</span>
-              <span>Install after launcher</span>
+              <span>Configure as GAME</span>
               <span>{clientBridge ? clientBridge.name : 'Build not publicly released'}</span>
             </div>
           </div>
-          <DownloadAction asset={clientBridge} label="DOWNLOAD BRIDGE" />
+          <DownloadAction asset={clientBridge} label="DOWNLOAD CLIENT" />
         </section>
 
         <section className="download-row">
@@ -118,7 +123,7 @@ export default async function DownloadsPage() {
           <div className="download-copy">
             <p>
               Original Fortnite game content is not bundled with Project Zero downloads. The launcher is designed
-              to work with content you are authorised to hold and verifies the local files before use.
+              to use content you are authorised to hold and verifies the finalized file set before handoff.
             </p>
             <div className="download-meta">
               <span>Separate from launcher</span>
@@ -131,8 +136,8 @@ export default async function DownloadsPage() {
       </div>
 
       <p className="download-note">
-        Packages shown as “Coming soon” have not been published as a signed public release yet. Once matching
-        MSIX/AppX assets are added to the latest GitHub release, their download buttons become active automatically.
+        Packages shown as “Coming soon” have not been published as a signed public release yet. The Xbox install
+        bundle also includes an INSTALL.txt reminder to set Project Zero as a Game rather than an App.
       </p>
     </div>
   );

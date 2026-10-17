@@ -51,10 +51,11 @@ namespace ProjectZero.Pages
 
                 if (_manifest == null || !_manifest.Available || !HasUsableSource(_manifest))
                 {
-                    DownloadStateText.Text = "CONTENT SOURCE NOT CONFIGURED";
+                    DownloadStateText.Text = "CONTENT NOT READY";
                     TopStateText.Text = "WAITING";
-                    DetailText.Text = _manifest?.Reason ?? "The Project Zero content endpoint is not available yet.";
+                    DetailText.Text = _manifest?.Reason ?? "The finalized Season 7 content manifest is not available yet.";
                     RetryButton.Visibility = Visibility.Visible;
+                    RetryButton.Focus(FocusState.Programmatic);
                     return;
                 }
 
@@ -64,7 +65,7 @@ namespace ProjectZero.Pages
                 {
                     FileValue.Text = _manifest.Files.Count + " FILES";
                     BytesText.Text = "0 MB / " + FormatBytes(TotalBytes(_manifest));
-                    DetailText.Text = "The extracted Season 7 folder will be restored into ProjectZeroContent with its original paths.";
+                    DetailText.Text = "Downloading the finalized Season 7 file set and restoring its original folder structure.";
                 }
                 else
                 {
@@ -99,6 +100,7 @@ namespace ProjectZero.Pages
             RetryButton.Visibility = Visibility.Collapsed;
             ContinueButton.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Visible;
+            CancelButton.Focus(FocusState.Programmatic);
             IntegrityValue.Text = "PENDING";
             DownloadStateText.Text = "DOWNLOADING SEASON 7 CONTENT";
             TopStateText.Text = "DOWNLOADING";
@@ -120,6 +122,7 @@ namespace ProjectZero.Pages
                 TopStateText.Text = "PAUSED";
                 RetryButton.Visibility = Visibility.Visible;
                 CancelButton.Visibility = Visibility.Collapsed;
+                RetryButton.Focus(FocusState.Programmatic);
             }
             catch (Exception ex)
             {
@@ -190,7 +193,7 @@ namespace ProjectZero.Pages
             var progress = new Progress<DownloadSnapshot>(p =>
             {
                 var percent = Math.Max(0, Math.Min(100, p.Percent));
-                DownloadProgressFill.Width = 7.0 * percent;
+                SetProgress(percent);
                 PercentText.Text = percent.ToString("0.0") + "%";
                 BytesText.Text = FormatBytes(p.Received) + " / " +
                                  (p.Total > 0 ? FormatBytes(p.Total) : FormatBytes(_manifest.Size));
@@ -203,7 +206,7 @@ namespace ProjectZero.Pages
                 progress,
                 _downloadCts.Token);
 
-            DownloadProgressFill.Width = 700;
+            SetProgress(100);
             PercentText.Text = "100%";
             DownloadStateText.Text = "VERIFYING PACKAGE";
             TopStateText.Text = "VERIFYING";
@@ -226,7 +229,7 @@ namespace ProjectZero.Pages
         private void UpdateAggregateProgress(ulong received, ulong total, int fileNumber, int fileCount, string path, string status)
         {
             var percent = total > 0 ? Math.Max(0, Math.Min(100, received * 100.0 / total)) : 0;
-            DownloadProgressFill.Width = 7.0 * percent;
+            SetProgress(percent);
             PercentText.Text = percent.ToString("0.0") + "%";
             BytesText.Text = FormatBytes(received) + " / " + FormatBytes(total);
             FileValue.Text = fileNumber + " / " + fileCount;
@@ -234,21 +237,28 @@ namespace ProjectZero.Pages
             TopStateText.Text = "DOWNLOADING";
         }
 
+        private void SetProgress(double percent)
+        {
+            var width = ProgressTrack.ActualWidth > 0 ? ProgressTrack.ActualWidth : 640.0;
+            DownloadProgressFill.Width = width * Math.Max(0, Math.Min(100, percent)) / 100.0;
+        }
+
         private void MarkReady()
         {
-            DownloadProgressFill.Width = 700;
+            SetProgress(100);
             PercentText.Text = "100%";
             DownloadStateText.Text = "CONTENT READY";
             TopStateText.Text = "READY";
             IntegrityValue.Text = "VERIFIED";
             IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
             DetailText.Text = IsMultiFile(_manifest)
-                ? "Season 7 files are present in their original folder layout and verified. Continue to the Project Zero Xbox client."
-                : "Season 7 content is present and verified. Continue to the Project Zero Xbox client.";
+                ? "Season 7 files are restored in their original folder layout and verified. Continue to the Xbox client."
+                : "Season 7 content is present and verified. Continue to the Xbox client.";
             ContinueButton.Visibility = Visibility.Visible;
             RetryButton.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Collapsed;
             StateDot.Fill = (Brush)Application.Current.Resources["PzOkBrush"];
+            ContinueButton.Focus(FocusState.Programmatic);
         }
 
         private void ShowFailure(string title, string detail)
@@ -260,13 +270,13 @@ namespace ProjectZero.Pages
             RetryButton.Visibility = Visibility.Visible;
             ContinueButton.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Collapsed;
+            RetryButton.Focus(FocusState.Programmatic);
         }
 
         private async void Retry_Click(object sender, RoutedEventArgs e)
         {
             if (_manifest != null && _manifest.Available && HasUsableSource(_manifest))
             {
-                // Refresh signed file URLs before retrying a multi-file transfer.
                 if (IsMultiFile(_manifest))
                 {
                     await PrepareAsync();

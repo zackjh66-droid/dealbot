@@ -1,1 +1,16 @@
-<Application x:Class="ProjectZeroClient.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Application.Resources><SolidColorBrush x:Key="Bg" Color="#06050A"/><SolidColorBrush x:Key="Fg" Color="#F3F0F7"/><SolidColorBrush x:Key="Gold" Color="#D9B76C"/></Application.Resources></Application>
+<Application
+    x:Class="ProjectZeroClient.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="Bg" Color="#08080B" />
+        <SolidColorBrush x:Key="Panel" Color="#E6121218" />
+        <SolidColorBrush x:Key="Line" Color="#2A2A34" />
+        <SolidColorBrush x:Key="Fg" Color="#F8F8FA" />
+        <SolidColorBrush x:Key="Muted" Color="#A1A1AA" />
+        <SolidColorBrush x:Key="Accent" Color="#A78BFA" />
+        <SolidColorBrush x:Key="AccentStrong" Color="#7C3AED" />
+        <SolidColorBrush x:Key="Ok" Color="#4ADE80" />
+        <SolidColorBrush x:Key="Gold" Color="#A78BFA" />
+    </Application.Resources>
+</Application>

@@ -15,6 +15,11 @@ namespace ProjectZero
         public App()
         {
             InitializeComponent();
+
+            // Xbox defaults UWP apps to mouse-mode emulation. Project Zero is a controller-first
+            // experience, so only enter pointer mode if a page explicitly requests it.
+            RequiresPointerMode = ApplicationRequiresPointerMode.WhenRequested;
+
             Suspending += OnSuspending;
         }
 
