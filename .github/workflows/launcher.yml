@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -120,6 +120,28 @@ jobs:
       - name: List bundles
         shell: pwsh
         run: Get-ChildItem -Recurse AppPackages -Include *.msix,*.appx,*.appxbundle,*.msixbundle,*.cer | Select-Object FullName,Length
+
+      - name: Publish launcher release
+        if: github.event_name == 'push' && steps.build.outcome == 'success'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $bundle = Get-ChildItem -Recurse AppPackages -Include *.msixbundle,*.appxbundle,*.msix,*.appx |
+            Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $bundle) { throw 'No package produced' }
+          $cer = Get-ChildItem -Recurse AppPackages -Filter ProjectZero.cer | Select-Object -First 1
+          gh release delete launcher-latest --yes --cleanup-tag 2>$null | Out-Null
+          $notes = @"
+          Automated Dev Mode build of the Project Zero launcher.
+
+          Install the .cer from the assets first (Trusted People + Trusted Root), then sideload the .msixbundle.
+          Package identity ProjectZero.Launcher, publisher CN=Project Zero, x64, version 1.0.0.0.
+          "@
+          gh release create launcher-latest "$($bundle.FullName)" "$($cer.FullName)" `
+            --title 'Project Zero launcher (latest)' `
+            --notes $notes `
+            --prerelease
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
