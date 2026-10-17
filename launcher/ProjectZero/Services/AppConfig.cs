@@ -5,6 +5,7 @@ namespace ProjectZero.Services
     public static class AppConfig
     {
         // Public production control plane used by Xbox. Preview deployments stay protected.
+        // Xbox visual/storage refresh build: 1.0.2.
         // Override at runtime by writing a string value named "apiBase" into LocalSettings.
         public const string DefaultBaseUrl = "https://projectzero7.vercel.app";
         public const string AppVersion = "1.0.2";
