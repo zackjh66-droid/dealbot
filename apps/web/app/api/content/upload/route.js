@@ -61,9 +61,9 @@ export async function POST(request) {
           throw new Error('Upload pathname did not match the requested game path');
         }
 
-        const size = Number(payload.size || 0);
+        const size = Number(payload.size ?? -1);
         const sha256 = String(payload.sha256 || '').trim().toLowerCase();
-        if (!Number.isSafeInteger(size) || size <= 0 || !/^[a-f0-9]{64}$/.test(sha256)) {
+        if (!Number.isSafeInteger(size) || size < 0 || !/^[a-f0-9]{64}$/.test(sha256)) {
           throw new Error('Invalid file size or SHA-256');
         }
 
