@@ -3,15 +3,17 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Color x:Key="PzInkColor">#FF08080B</Color>
-    <Color x:Key="PzPanelColor">#F0121218</Color>
-    <Color x:Key="PzLineColor">#FF2A2A34</Color>
-    <Color x:Key="PzVioletColor">#FF7C3AED</Color>
-    <Color x:Key="PzVioletBrightColor">#FFA78BFA</Color>
-    <Color x:Key="PzGoldColor">#FFA78BFA</Color>
-    <Color x:Key="PzMutedColor">#FFA1A1AA</Color>
-    <Color x:Key="PzTextColor">#FFF8F8FA</Color>
-    <Color x:Key="PzOkColor">#FF4ADE80</Color>
+    <Color x:Key="PzInkColor">#FF07090E</Color>
+    <Color x:Key="PzPanelColor">#E8131720</Color>
+    <Color x:Key="PzLineColor">#668FA6C3</Color>
+    <Color x:Key="PzVioletColor">#FF7657FF</Color>
+    <Color x:Key="PzVioletBrightColor">#FFB6A7FF</Color>
+    <Color x:Key="PzGoldColor">#FFB6A7FF</Color>
+    <Color x:Key="PzMutedColor">#FFB7C2D1</Color>
+    <Color x:Key="PzTextColor">#FFFFFFFF</Color>
+    <Color x:Key="PzOkColor">#FF63E69B</Color>
+    <Color x:Key="PzIceColor">#FFB8E7FF</Color>
+    <Color x:Key="PzDangerColor">#FFFF6B77</Color>
 
     <SolidColorBrush x:Key="PzPanelBrush" Color="{StaticResource PzPanelColor}" />
     <SolidColorBrush x:Key="PzLineBrush" Color="{StaticResource PzLineColor}" />
@@ -21,43 +23,47 @@
     <SolidColorBrush x:Key="PzMutedBrush" Color="{StaticResource PzMutedColor}" />
     <SolidColorBrush x:Key="PzTextBrush" Color="{StaticResource PzTextColor}" />
     <SolidColorBrush x:Key="PzOkBrush" Color="{StaticResource PzOkColor}" />
+    <SolidColorBrush x:Key="PzIceBrush" Color="{StaticResource PzIceColor}" />
+    <SolidColorBrush x:Key="PzDangerBrush" Color="{StaticResource PzDangerColor}" />
 
     <LinearGradientBrush x:Key="PzBackground" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#FF070709" Offset="0" />
-        <GradientStop Color="#FF0B0911" Offset="0.62" />
-        <GradientStop Color="#FF100B1C" Offset="1" />
+        <GradientStop Color="#FF07101C" Offset="0" />
+        <GradientStop Color="#FF090C16" Offset="0.58" />
+        <GradientStop Color="#FF130A20" Offset="1" />
     </LinearGradientBrush>
 
-    <LinearGradientBrush x:Key="PzGoldGradient" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#FF8B5CF6" Offset="0" />
-        <GradientStop Color="#FF6D28D9" Offset="1" />
+    <LinearGradientBrush x:Key="PzHeroScrim" StartPoint="0,0.5" EndPoint="1,0.5">
+        <GradientStop Color="#F7060B13" Offset="0" />
+        <GradientStop Color="#D60A0C13" Offset="0.46" />
+        <GradientStop Color="#88101420" Offset="0.76" />
+        <GradientStop Color="#B20A0C13" Offset="1" />
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="PzBarGradient" StartPoint="0,0" EndPoint="1,0">
-        <GradientStop Color="#FF6D28D9" Offset="0" />
-        <GradientStop Color="#FFA78BFA" Offset="0.72" />
-        <GradientStop Color="#FFFFFFFF" Offset="1" />
+        <GradientStop Color="#FF7257FF" Offset="0" />
+        <GradientStop Color="#FF9B8AFF" Offset="0.60" />
+        <GradientStop Color="#FFC2EDFF" Offset="1" />
     </LinearGradientBrush>
 
     <Style x:Key="PzEyebrow" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontFamily" Value="Segoe UI Semibold" />
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="CharacterSpacing" Value="240" />
-        <Setter Property="Foreground" Value="{StaticResource PzVioletBrightBrush}" />
+        <Setter Property="CharacterSpacing" Value="180" />
+        <Setter Property="Foreground" Value="{StaticResource PzIceBrush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style x:Key="PzMono" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontFamily" Value="Segoe UI Semibold" />
         <Setter Property="FontSize" Value="11" />
-        <Setter Property="CharacterSpacing" Value="105" />
+        <Setter Property="CharacterSpacing" Value="70" />
         <Setter Property="Foreground" Value="{StaticResource PzMutedBrush}" />
     </Style>
 
     <Style x:Key="PzDisplay" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Black" />
         <Setter Property="FontWeight" Value="Black" />
-        <Setter Property="CharacterSpacing" Value="15" />
+        <Setter Property="CharacterSpacing" Value="-10" />
         <Setter Property="Foreground" Value="{StaticResource PzTextBrush}" />
         <Setter Property="TextWrapping" Value="NoWrap" />
     </Style>
@@ -66,30 +72,31 @@
         <Setter Property="Background" Value="{StaticResource PzPanelBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource PzLineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="CornerRadius" Value="2" />
         <Setter Property="Padding" Value="26" />
     </Style>
 
     <Style x:Key="PzButton" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource PzVioletBrush}" />
         <Setter Property="Foreground" Value="#FFFFFFFF" />
-        <Setter Property="BorderBrush" Value="{StaticResource PzVioletBrightBrush}" />
+        <Setter Property="BorderBrush" Value="#FFBBAEFF" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontFamily" Value="Segoe UI Semibold" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontSize" Value="14" />
-        <Setter Property="CharacterSpacing" Value="120" />
-        <Setter Property="Padding" Value="28,15" />
-        <Setter Property="MinHeight" Value="52" />
+        <Setter Property="CharacterSpacing" Value="70" />
+        <Setter Property="Padding" Value="27,15" />
+        <Setter Property="MinHeight" Value="54" />
         <Setter Property="UseSystemFocusVisuals" Value="True" />
         <Setter Property="FocusVisualPrimaryBrush" Value="#FFFFFFFF" />
-        <Setter Property="FocusVisualSecondaryBrush" Value="{StaticResource PzVioletBrightBrush}" />
+        <Setter Property="FocusVisualSecondaryBrush" Value="{StaticResource PzIceBrush}" />
+        <Setter Property="FocusVisualPrimaryThickness" Value="3" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid x:Name="Root" Background="Transparent">
                         <Border x:Name="Surface"
-                                CornerRadius="4"
+                                CornerRadius="2"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}">
@@ -124,25 +131,26 @@
     </Style>
 
     <Style x:Key="PzGhostButton" TargetType="Button">
-        <Setter Property="Background" Value="#14000000" />
+        <Setter Property="Background" Value="#C2121720" />
         <Setter Property="Foreground" Value="{StaticResource PzTextBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource PzLineBrush}" />
+        <Setter Property="BorderBrush" Value="#889DB4CE" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontFamily" Value="Segoe UI Semibold" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="14" />
-        <Setter Property="CharacterSpacing" Value="120" />
-        <Setter Property="Padding" Value="28,15" />
-        <Setter Property="MinHeight" Value="52" />
+        <Setter Property="CharacterSpacing" Value="70" />
+        <Setter Property="Padding" Value="27,15" />
+        <Setter Property="MinHeight" Value="54" />
         <Setter Property="UseSystemFocusVisuals" Value="True" />
         <Setter Property="FocusVisualPrimaryBrush" Value="#FFFFFFFF" />
-        <Setter Property="FocusVisualSecondaryBrush" Value="{StaticResource PzVioletBrightBrush}" />
+        <Setter Property="FocusVisualSecondaryBrush" Value="{StaticResource PzIceBrush}" />
+        <Setter Property="FocusVisualPrimaryThickness" Value="3" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid x:Name="Root" Background="Transparent">
                         <Border x:Name="Surface"
-                                CornerRadius="4"
+                                CornerRadius="2"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}">
@@ -155,12 +163,12 @@
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver">
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Surface" Storyboard.TargetProperty="Opacity" To="0.78" Duration="0:0:0.08" />
+                                        <DoubleAnimation Storyboard.TargetName="Surface" Storyboard.TargetProperty="Opacity" To="0.82" Duration="0:0:0.08" />
                                     </Storyboard>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Surface" Storyboard.TargetProperty="Opacity" To="0.58" Duration="0:0:0.06" />
+                                        <DoubleAnimation Storyboard.TargetName="Surface" Storyboard.TargetProperty="Opacity" To="0.62" Duration="0:0:0.06" />
                                     </Storyboard>
                                 </VisualState>
                                 <VisualState x:Name="Disabled">
