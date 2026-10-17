@@ -1,3 +1,4 @@
+# deps / build output
 node_modules/
 .next/
 out/
@@ -10,23 +11,38 @@ out/
 .env.*.local
 apps/web/.env
 apps/web/.env.local
+!.env.example
 
 # .NET / UWP build output
+.vs/
 bin/
 obj/
+**/bin/
+**/obj/
 AppPackages/
 *.appx
 *.appxbundle
 *.appxupload
 *.msix
 *.msixbundle
+*.zip
 launcher/**/bin/
 launcher/**/obj/
 launcher/**/AppPackages/
 
-# signing material
+# signing material (public certs under launcher/certs stay tracked)
 *.pfx
 *.snk
+*.cer
+!launcher/certs/*.cer
+
+# Never commit game/client binaries or extracted Fortnite content
+FortniteClient*/
+GameFiles/
+ClientFiles/
+*.pak
+*.ucas
+*.utoc
 
 # OS noise
 .DS_Store

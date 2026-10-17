@@ -1,5 +1,3 @@
-# Project Zero
-
 Private Xbox Dev Mode workspace for Season 6 and Season 7 console builds. Console link, account creation,
 launcher handoff, build registry. No matchmaking, no live services.
 
@@ -103,3 +101,13 @@ string `apiBase` into the launcher's `LocalSettings`.
 - Manifest for the console: `ProjectZero.cer` in the same release. Install it before the bundle.
 - Source archive: `https://github.com/zackjh66-droid/dealbot/archive/refs/heads/main.zip`
 - Build archives: listed on `/builds`, hosted by third parties. Project Zero does not host game binaries.
+
+## Repository layout note
+
+The working implementation is `apps/web` (site + control-plane API, deployed) and `launcher/ProjectZero`
+(UWP x64 launcher, built and signed by CI). The repo also carries an earlier scaffold merged from `main`
+(`web/`, `xbox/`, `backend/supabase/schema.sql`, `clientbridge/`, `scripts/`, `docs/STATUS.md`,
+`docs/XBOX_DEPLOY.md`, `docs/XBOX_TEST.md`). It documents a device-code flow and a native import audit and
+is kept for reference; it is not deployed and does not produce the published package.
+
+Fortnite/Epic binaries and assets are intentionally not stored in this repository.
