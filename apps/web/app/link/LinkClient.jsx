@@ -46,10 +46,10 @@ export default function LinkClient() {
       const data = await res.json();
       if (!data.valid) {
         const reasons = {
-          unknown: 'No console is showing that code.',
-          claimed: 'That console is already linked to an account.',
-          expired: 'That code timed out. Refresh the launcher for a new one.',
-          format: 'Codes are six characters.'
+          unknown: 'No Xbox is currently showing that code.',
+          claimed: 'That code has already been used.',
+          expired: 'That code expired. Refresh the launcher for a new one.',
+          format: 'The code must be six characters.'
         };
         setError(reasons[data.reason] || 'That code is not active.');
         return;
@@ -57,7 +57,7 @@ export default function LinkClient() {
       setExpiresAt(data.expiresAt);
       setStage('signup');
     } catch {
-      setError('Control plane unreachable. Try again.');
+      setError('Project Zero could not reach the linking service. Try again.');
     } finally {
       setBusy(false);
     }
@@ -82,7 +82,7 @@ export default function LinkClient() {
       setAccount(data.account);
       setStage('done');
     } catch {
-      setError('Control plane unreachable. Try again.');
+      setError('Project Zero could not reach the linking service. Try again.');
     } finally {
       setBusy(false);
     }
@@ -95,26 +95,23 @@ export default function LinkClient() {
 
   return (
     <div className="container page">
-      <div className="page-head">
-        <span className="eyebrow">Console link</span>
-        <h1>Bind the box</h1>
+      <header className="page-head">
+        <span className="eyebrow">CONSOLE LINK</span>
+        <h1>Link your Xbox.</h1>
         <p>
-          The launcher is showing a six character code. Enter it below, then create the account the client
-          will boot into. Nobody needs a controller for this part.
+          Open Project Zero on the console and type the six-character code shown on your TV. The website only
+          handles the account and device handshake; the launcher keeps the Xbox session.
         </p>
-      </div>
+      </header>
 
       <div className="flow-grid">
-        <div className="panel form-panel">
+        <section className="panel form-panel">
           {stage === 'code' ? (
             <form onSubmit={checkCode}>
-              <div className="form-step">
-                <b>01</b>
-                <span>Console code</span>
-              </div>
+              <div className="form-step"><b>01</b><span>Enter the TV code</span></div>
               {error ? <div className="alert">{error}</div> : null}
               <div className="field">
-                <label htmlFor="code">Six character link code</label>
+                <label htmlFor="code">Six-character code</label>
                 <input
                   id="code"
                   className="code-input"
@@ -127,7 +124,7 @@ export default function LinkClient() {
                   inputMode="text"
                   maxLength={6}
                 />
-                <div className="field-hint">Shown on the TV by the Project Zero launcher.</div>
+                <div className="field-hint">Shown by the Project Zero Xbox launcher.</div>
               </div>
               <button className="btn btn-primary" type="submit" disabled={busy || code.length !== 6}>
                 {busy ? 'Checking…' : 'Continue'}
@@ -137,13 +134,10 @@ export default function LinkClient() {
 
           {stage === 'signup' ? (
             <form onSubmit={claimAccount}>
-              <div className="form-step">
-                <b>02</b>
-                <span>Account details</span>
-              </div>
+              <div className="form-step"><b>02</b><span>Create the Project Zero identity</span></div>
               {error ? <div className="alert">{error}</div> : null}
               <div className="alert gold">
-                Console <strong className="mono">{code}</strong> is live.{' '}
+                Xbox <strong className="mono">{code}</strong> is ready.{' '}
                 {remaining && remaining !== 'expired' ? (
                   <span className="timer">Expires in {remaining}</span>
                 ) : (
@@ -152,99 +146,48 @@ export default function LinkClient() {
               </div>
               <div className="field">
                 <label htmlFor="email">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@domain.com"
-                  autoComplete="email"
-                  required
-                />
+                <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@domain.com" autoComplete="email" required />
               </div>
               <div className="field">
-                <label htmlFor="username">Username</label>
-                <input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="3-20 characters"
-                  autoComplete="username"
-                  maxLength={20}
-                  required
-                />
-                <div className="field-hint">Letters, numbers and underscore. This is the name the client uses.</div>
+                <label htmlFor="username">Display name</label>
+                <input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="3-20 characters" autoComplete="username" maxLength={20} required />
+                <div className="field-hint">Letters, numbers and underscore. This is the name Project Zero gives the client.</div>
               </div>
-              <div className="spread" style={{ gap: 12 }}>
-                <button className="btn btn-ghost" type="button" onClick={() => setStage('code')}>
-                  Back
-                </button>
-                <button className="btn btn-primary" type="submit" disabled={busy || remaining === 'expired'}>
-                  {busy ? 'Creating…' : 'Create account'}
-                </button>
+              <div className="spread">
+                <button className="btn btn-ghost" type="button" onClick={() => setStage('code')}>Back</button>
+                <button className="btn btn-primary" type="submit" disabled={busy || remaining === 'expired'}>{busy ? 'Creating…' : 'Create account'}</button>
               </div>
             </form>
           ) : null}
 
           {stage === 'done' ? (
             <div>
-              <div className="success-mark">Z</div>
-              <div className="form-step">
-                <b>03</b>
-                <span>Linked</span>
-              </div>
-              <h2 className="display" style={{ fontSize: 30, marginBottom: 8 }}>
-                Console claimed
-              </h2>
+              <div className="success-mark">✓</div>
+              <div className="form-step"><b>03</b><span>Linked</span></div>
+              <h2 className="display" style={{ fontSize: 34, marginBottom: 10 }}>Xbox linked.</h2>
               <p className="note">
-                The launcher is polling and will pick this up within five seconds. Leave the console on this
-                screen. The client boots straight after the session ticket is minted.
+                Leave the launcher open. It polls for the claim, receives the console session and continues to
+                the Season 7 client handoff.
               </p>
               <div className="rule" />
-              <div className="kv">
-                <span>Username</span>
-                <b>{account?.username}</b>
-              </div>
-              <div className="kv">
-                <span>Account no.</span>
-                <b>#{String(account?.accountNo || 0).padStart(5, '0')}</b>
-              </div>
-              <div className="kv">
-                <span>Email</span>
-                <b>{account?.email}</b>
-              </div>
-              <div style={{ marginTop: 24 }}>
-                <Link href="/account" className="btn btn-primary">
-                  Open account
-                </Link>
-              </div>
+              <div className="kv"><span>Username</span><b>{account?.username}</b></div>
+              <div className="kv"><span>Account no.</span><b>#{String(account?.accountNo || 0).padStart(5, '0')}</b></div>
+              <div className="kv"><span>Email</span><b>{account?.email}</b></div>
+              <Link href="/account" className="btn btn-primary" style={{ marginTop: 24 }}>Open account</Link>
             </div>
           ) : null}
-        </div>
+        </section>
 
-        <div className="panel side-panel">
-          <span className="eyebrow dim">Handshake rules</span>
-          <div className="kv">
-            <span>Code window</span>
-            <b>15 minutes</b>
-          </div>
-          <div className="kv">
-            <span>Binding</span>
-            <b>1 console / code</b>
-          </div>
-          <div className="kv">
-            <span>Session</span>
-            <b>Console token</b>
-          </div>
-          <div className="kv">
-            <span>Client</span>
-            <b>Season 6 / 7</b>
-          </div>
+        <aside className="panel side-panel">
+          <span className="eyebrow dim">HANDSHAKE</span>
+          <div className="kv"><span>Code window</span><b>15 minutes</b></div>
+          <div className="kv"><span>Binding</span><b>One Xbox per code</b></div>
+          <div className="kv"><span>Target</span><b>Season 7 · 7.00</b></div>
+          <div className="kv"><span>Build</span><b>CL-4629139</b></div>
           <p className="note" style={{ marginTop: 20 }}>
-            Creating the account here does not create an Epic Games account. It is a Project Zero identity,
-            local to this workspace and the console that claimed it.
+            This creates a Project Zero identity only. It does not create or replace an Epic Games account.
           </p>
-        </div>
+        </aside>
       </div>
     </div>
   );
