@@ -39,7 +39,7 @@ namespace ProjectZeroClient
                 var endpoint = QueryValue(uri, "endpoint");
                 if (!string.IsNullOrWhiteSpace(ticket) && !string.IsNullOrWhiteSpace(endpoint))
                 {
-                    PayloadText.Text = protocolState + "\nsession=CONNECTING\ncontent=WAITING";
+                    PayloadText.Text = protocolState + "\nsession=CONNECTING\ncontent=WAITING\nruntime=WAITING";
                     sessionState = await RedeemGameSessionAsync(endpoint, ticket);
                 }
             }
@@ -48,9 +48,17 @@ namespace ProjectZeroClient
                 protocolState = "activation=DIRECT";
             }
 
-            PayloadText.Text = protocolState + "\n" + sessionState + "\ncontent=CHECKING";
+            PayloadText.Text = protocolState + "\n" + sessionState + "\ncontent=CHECKING\nruntime=WAITING";
             var contentState = await ReadAndVerifyContentStateAsync();
-            PayloadText.Text = protocolState + "\n" + sessionState + "\n" + contentState;
+
+            var runtimeState = "runtime=WAITING_FOR_CONTENT";
+            if (contentState.StartsWith("content=VERIFIED", StringComparison.Ordinal))
+            {
+                PayloadText.Text = protocolState + "\n" + sessionState + "\n" + contentState + "\nruntime=LOADING";
+                runtimeState = await RuntimeLoader.TryStartAsync();
+            }
+
+            PayloadText.Text = protocolState + "\n" + sessionState + "\n" + contentState + "\n" + runtimeState;
         }
 
         private static async Task<string> RedeemGameSessionAsync(string endpoint, string ticket)
