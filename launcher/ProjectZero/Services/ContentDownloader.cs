@@ -58,10 +58,15 @@ namespace ProjectZero.Services
                     await existing.AttachAsync().AsTask(cancellationToken, handler);
                     return (StorageFile)existing.ResultFile;
                 }
+                catch (TaskCanceledException)
+                {
+                    throw;
+                }
                 catch
                 {
-                    try { existing.Cancel(); } catch { }
-                    // The old signed URL may have expired. Start a fresh operation below using the new URL.
+                    // A resumed operation may contain an expired signed URL. We cannot mutate that
+                    // DownloadOperation, so replace the partial destination and start a new operation
+                    // with the fresh URL from the newly fetched manifest.
                     file = await GetOrCreateDestinationAsync(folder, cleanPath, true);
                 }
             }
