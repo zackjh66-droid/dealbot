@@ -11,6 +11,8 @@ export async function POST(req) {
   if (!(await underLimit('link.claim', ip, 20, 60))) {
     return json({ error: 'Too many attempts. Wait an hour and try again.' }, 429);
   }
+  await audit('link.claim', { ip, meta: { phase: 'request' } });
+
   const body = await readJson(req);
   const code = String(body.code || '').trim().toUpperCase();
   const email = String(body.email || '').trim().toLowerCase();

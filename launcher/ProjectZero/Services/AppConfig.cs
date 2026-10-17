@@ -6,7 +6,7 @@ namespace ProjectZero.Services
     {
         // Production control plane. Override at runtime by writing a string value
         // named "apiBase" into ApplicationData.Current.LocalSettings.
-        public const string DefaultBaseUrl = "https://project-zero.vercel.app";
+        public const string DefaultBaseUrl = "https://project-zero-delta.vercel.app";
         public const string AppVersion = "1.0.0";
 
         public static string BaseUrl

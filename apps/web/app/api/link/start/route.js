@@ -13,6 +13,8 @@ export async function POST(req) {
     return json({ error: 'Too many consoles linked from this network. Wait an hour.' }, 429);
   }
 
+  await audit('link.start', { ip, meta: { phase: 'request' } });
+
   const body = await readJson(req);
   const name = String(body.deviceName || 'Xbox console').slice(0, 64);
   const platform = String(body.platform || 'xbox').slice(0, 32);
@@ -64,7 +66,7 @@ export async function POST(req) {
     deviceToken,
     pollToken,
     expiresAt: inserted.expires_at,
-    linkUrl: `${siteUrl()}/link?code=${inserted.code}`,
+    linkUrl: `${siteUrl(req)}/link?code=${inserted.code}`,
     ttlSeconds: CODE_TTL_MINUTES * 60
   });
 }

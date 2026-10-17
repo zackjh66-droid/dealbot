@@ -2,20 +2,22 @@ name: launcher
 
 on:
   push:
-    branches: [main]
+    branches: ['main', 'arena/**']
     paths:
       - 'launcher/**'
+      - 'tools/**'
       - '.github/workflows/launcher.yml'
   pull_request:
     paths:
       - 'launcher/**'
+      - 'tools/**'
       - '.github/workflows/launcher.yml'
   workflow_dispatch:
 
 jobs:
   build-msix:
     runs-on: windows-2022
-    timeout-minutes: 40
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: launcher/ProjectZero
@@ -29,15 +31,34 @@ jobs:
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
           "MSBUILD=$msbuild" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Write-Host "Using $msbuild"
+
+      - name: Generate signing certificate
+        shell: pwsh
+        run: |
+          $pw = [guid]::NewGuid().ToString('N')
+          $secure = ConvertTo-SecureString $pw -AsPlainText -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=Project Zero' `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'Project Zero CI' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+          Export-PfxCertificate -Cert $cert -FilePath "$PWD\ProjectZero.pfx" -Password $secure | Out-Null
+          Export-Certificate -Cert $cert -FilePath "$PWD\ProjectZero.cer" | Out-Null
+          Copy-Item "$PWD\ProjectZero.cer" "$PWD\ProjectZero.ci.cer"
+          "SIGN_PW=$pw" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Certificate $($cert.Thumbprint) generated"
 
       - name: Restore
         shell: pwsh
         run: |
           & $env:MSBUILD ProjectZero.csproj /t:Restore /p:Configuration=Release /p:Platform=x64 /v:minimal
 
-      - name: Build and bundle
+      - name: Build and sign bundle
         shell: pwsh
         run: |
           & $env:MSBUILD ProjectZero.csproj `
@@ -46,30 +67,21 @@ jobs:
             /p:AppxBundle=Always `
             /p:AppxBundlePlatforms=x64 `
             /p:UapAppxPackageBuildMode=SideloadOnly `
-            /p:AppxPackageSigningEnabled=false `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateKeyFile="$PWD\ProjectZero.pfx" `
+            /p:PackageCertificatePassword=$env:SIGN_PW `
             /p:AppxPackageDir="$PWD\AppPackages" `
             /v:minimal
 
-      - name: List bundles
-        shell: pwsh
-        run: Get-ChildItem -Recurse AppPackages -Include *.msix,*.appx,*.appxbundle,*.msixbundle | Select-Object FullName,Length
-
-      - name: Sign bundle with project certificate
-        if: ${{ secrets.PZ_SIGNING_PFX_BASE64 != '' }}
+      - name: Copy certificate beside the bundle
         shell: pwsh
         run: |
-          $pfx = Join-Path $env:RUNNER_TEMP 'ProjectZero.pfx'
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String('${{ secrets.PZ_SIGNING_PFX_BASE64 }}'))
+          Get-ChildItem -Recurse AppPackages -Include *.msixbundle,*.appxbundle,*.msix,*.appx |
+            ForEach-Object { Copy-Item "$PWD\ProjectZero.ci.cer" (Join-Path $_.DirectoryName 'ProjectZero.cer') -Force }
 
-          $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory |
-            Sort-Object Name -Descending | Select-Object -First 1
-          $signtool = Join-Path $sdk.FullName 'x64\signtool.exe'
-
-          $bundle = Get-ChildItem -Recurse AppPackages -Include *.msixbundle,*.appxbundle | Select-Object -First 1
-          if (-not $bundle) { throw 'No bundle produced' }
-
-          & $signtool sign /fd SHA256 /f $pfx /p '${{ secrets.PZ_SIGNING_PFX_PASSWORD }}' /td SHA256 "$($bundle.FullName)"
-          Write-Host "Signed $($bundle.FullName)"
+      - name: List bundles
+        shell: pwsh
+        run: Get-ChildItem -Recurse AppPackages -Include *.msix,*.appx,*.appxbundle,*.msixbundle,*.cer | Select-Object FullName,Length
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
