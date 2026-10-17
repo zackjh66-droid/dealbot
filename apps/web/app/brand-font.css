@@ -1,0 +1,29 @@
+/*
+  Project Zero display typography.
+  The Chapter 1 Fortnite-style display face is Burbank Big Condensed Black.
+  We intentionally do not redistribute a proprietary font file here. If the font
+  is installed on the device, the local() sources use it; otherwise the condensed
+  system fallbacks keep the same silhouette until a licensed webfont is supplied.
+*/
+@font-face {
+  font-family: "ProjectZero Burbank";
+  src:
+    local("Burbank Big Condensed Black"),
+    local("BurbankBigCondensed-Black"),
+    local("Burbank Big Condensed");
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+}
+
+:root {
+  --display-heavy: "ProjectZero Burbank", Impact, Haettenschweiler, "Arial Narrow Bold", "Arial Narrow", sans-serif;
+  --display: "ProjectZero Burbank", Impact, Haettenschweiler, "Arial Narrow", sans-serif;
+}
+
+.brand-word strong,
+.nav-links a,
+.btn,
+.portal-button {
+  font-family: var(--display-heavy);
+}
