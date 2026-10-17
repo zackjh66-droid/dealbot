@@ -1,5 +1,5 @@
 using System;
-using System.Linq;
+using Windows.Data.Json;
 using Windows.Storage;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -8,6 +8,9 @@ namespace ProjectZeroClient
 {
     public sealed partial class ClientPage : Page
     {
+        private const string SharedFolderName = "ProjectZeroContent";
+        private const string MarkerFileName = "projectzero-content.json";
+
         public ClientPage() { InitializeComponent(); }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -28,30 +31,60 @@ namespace ProjectZeroClient
                 protocolState = "activation=DIRECT";
             }
 
-            string contentState;
+            var contentState = await ReadContentStateAsync();
+            PayloadText.Text = protocolState + "\n" + contentState;
+        }
+
+        private static async System.Threading.Tasks.Task<string> ReadContentStateAsync()
+        {
             try
             {
-                var folder = ApplicationData.Current.GetPublisherCacheFolder("ProjectZeroContent");
-                var files = await folder.GetFilesAsync();
-                if (files.Count == 0)
+                var folder = ApplicationData.Current.GetPublisherCacheFolder(SharedFolderName);
+                StorageFile marker;
+                try
                 {
-                    contentState = "content=NOT_FOUND";
+                    marker = await folder.GetFileAsync(MarkerFileName);
                 }
-                else
+                catch
                 {
-                    var file = files.First();
-                    var props = await file.GetBasicPropertiesAsync();
-                    contentState = "content=FOUND" +
-                                   "\ncontent_file=" + file.Name +
-                                   "\ncontent_bytes=" + props.Size;
+                    return "content=NOT_VERIFIED\ncontent_marker=MISSING";
                 }
+
+                var markerText = await FileIO.ReadTextAsync(marker);
+                var jo = JsonObject.Parse(markerText);
+                var fileName = GetString(jo, "fileName");
+                var build = GetString(jo, "build");
+                var cl = GetString(jo, "cl");
+
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    return "content=NOT_VERIFIED\ncontent_marker=INVALID";
+                }
+
+                var file = await folder.GetFileAsync(fileName);
+                var props = await file.GetBasicPropertiesAsync();
+
+                return "content=VERIFIED" +
+                       "\ncontent_file=" + file.Name +
+                       "\ncontent_build=" + (build ?? "") +
+                       "\ncontent_cl=" + (cl ?? "") +
+                       "\ncontent_bytes=" + props.Size;
             }
             catch (Exception ex)
             {
-                contentState = "content=UNAVAILABLE\ncontent_error=" + ex.GetType().Name;
+                return "content=UNAVAILABLE\ncontent_error=" + ex.GetType().Name;
+            }
+        }
+
+        private static string GetString(JsonObject jo, string key)
+        {
+            IJsonValue value;
+            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.String)
+            {
+                return value.GetString();
             }
 
-            PayloadText.Text = protocolState + "\n" + contentState;
+            return null;
         }
     }
 }
