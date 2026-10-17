@@ -43,7 +43,7 @@ export default function LauncherPreview() {
               <div>
                 <span className="eyebrow">Console link</span>
                 <div className="tv-code">{CODE}</div>
-                <div className="tv-url">project-zero.vercel.app/link</div>
+                <div className="tv-url">project-zero-delta.vercel.app/link</div>
                 <div className="connsole-foot" style={{ marginTop: 30, display: 'flex', gap: 12, alignItems: 'center' }}>
                   <span className="status-dot standby" />
                   <span className="mono" style={{ fontSize: 11, letterSpacing: '0.14em', color: '#948ba9' }}>
@@ -61,7 +61,7 @@ export default function LauncherPreview() {
               <div>
                 <div className="tv-qr">
                   <img
-                    src="/api/qr?data=https%3A%2F%2Fproject-zero.vercel.app%2Flink"
+                    src="/api/qr?data=https%3A%2F%2Fproject-zero-delta.vercel.app%2Flink"
                     alt="Link QR"
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   />

@@ -23,7 +23,7 @@ docs/                Install, launcher, client-port notes
 | Control-plane API (start / inspect / claim / poll / ticket / me) | built, deployed |
 | Supabase schema + registry | applied |
 | UWP launcher source | complete, built by CI |
-| Launcher MSIX | produced by the `launcher` workflow on Windows |
+| Launcher MSIX | built, signed and published by CI (`launcher-latest` release) |
 | Season 6 / 7 UWP game client package | not built; see `docs/CLIENT-PORT.md` |
 | Matchmaking | not implemented by design |
 
@@ -99,6 +99,7 @@ string `apiBase` into the launcher's `LocalSettings`.
 
 ## Downloads
 
+- Launcher (signed MSIX bundle, certificate, CoreRuntime dependency): `https://github.com/zackjh66-droid/dealbot/releases/tag/launcher-latest`
+- Manifest for the console: `ProjectZero.cer` in the same release. Install it before the bundle.
 - Source archive: `https://github.com/zackjh66-droid/dealbot/archive/refs/heads/main.zip`
-- Launcher bundle: GitHub Actions `launcher` workflow artifact, or the Releases page once a release is cut.
 - Build archives: listed on `/builds`, hosted by third parties. Project Zero does not host game binaries.
