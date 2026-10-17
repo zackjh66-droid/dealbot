@@ -19,6 +19,14 @@ function normalizeRelativePath(value) {
   return parts.length > 1 ? parts.slice(1).join('/') : parts[0];
 }
 
+function safeArchiveName(value) {
+  const name = String(value || 'fortnite-7.00.rar')
+    .split(/[\\/]/)
+    .pop()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-');
+  return name.toLowerCase().endsWith('.rar') ? name : `${name}.rar`;
+}
+
 function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = Number(bytes || 0);
@@ -40,7 +48,7 @@ async function ensureReadPermission(handle) {
     if (handle.queryPermission && (await handle.queryPermission({ mode: 'read' })) === 'granted') return;
     if (handle.requestPermission) {
       const result = await handle.requestPermission({ mode: 'read' });
-      if (result !== 'granted') throw new Error('Folder read permission was not granted.');
+      if (result !== 'granted') throw new Error('File read permission was not granted.');
     }
   } catch (error) {
     if (error?.name === 'SecurityError') return;
@@ -80,12 +88,25 @@ function legacyEntries(fileList) {
   })).filter((entry) => entry.relativePath);
 }
 
+function archiveEntry(file, handle = null) {
+  if (!file || !/\.rar$/i.test(file.name || '')) {
+    throw new Error('Choose the Fortnite 7.00 .rar archive.');
+  }
+  return {
+    relativePath: `.source/${safeArchiveName(file.name)}`,
+    size: file.size,
+    lastModified: file.lastModified,
+    handle,
+    legacyFile: handle ? null : file
+  };
+}
+
 async function materializeEntry(entry) {
   if (entry.handle) {
     await ensureReadPermission(entry.handle);
     const file = await entry.handle.getFile();
     if (file.size !== entry.size || file.lastModified !== entry.lastModified) {
-      throw new Error('Local file changed after the folder was selected. Re-select the folder before continuing.');
+      throw new Error('Local file changed after it was selected. Re-select it before continuing.');
     }
     return file;
   }
@@ -97,8 +118,6 @@ async function hashFile(file, onProgress) {
   const hash = sha256.create();
   if (file.size === 0) return bytesToHex(hash.digest());
 
-  // Prefer one continuous file stream. This keeps Chromium/ChromeOS from repeatedly reopening
-  // multi-gigabyte PAK files for each slice, which can trigger NotReadableError on large files.
   if (typeof file.stream === 'function') {
     const reader = file.stream().getReader();
     let loaded = 0;
@@ -167,8 +186,6 @@ async function uploadEntryWithRetry(pathname, entry, options, onRetry) {
   let lastError;
   for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt += 1) {
     try {
-      // Re-open from the persistent FileSystemFileHandle for every upload attempt instead of
-      // holding a stale File object for the lifetime of a many-gigabyte folder upload.
       const file = await materializeEntry(entry);
       return await upload(pathname, file, options);
     } catch (error) {
@@ -182,7 +199,8 @@ async function uploadEntryWithRetry(pathname, entry, options, onRetry) {
 }
 
 export default function ContentAdminPage() {
-  const inputRef = useRef(null);
+  const folderInputRef = useRef(null);
+  const archiveInputRef = useRef(null);
   const [key, setKey] = useState('');
   const [files, setFiles] = useState([]);
   const [selectionMode, setSelectionMode] = useState('NONE');
@@ -196,6 +214,7 @@ export default function ContentAdminPage() {
   const [locked, setLocked] = useState(false);
 
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
+  const archiveMode = selectionMode.startsWith('ARCHIVE');
 
   function resetSelection(selected, mode) {
     setFiles(selected.sort((a, b) => a.relativePath.localeCompare(b.relativePath)));
@@ -213,11 +232,24 @@ export default function ContentAdminPage() {
     resetSelection(legacyEntries(event.target.files), 'LEGACY');
   }
 
+  function chooseLegacyArchive(event) {
+    try {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      resetSelection([archiveEntry(file)], 'ARCHIVE LEGACY');
+    } catch (error) {
+      setPhase('FAILED');
+      setFailed([{ path: 'ARCHIVE', error: error?.message || 'Could not read the selected archive.' }]);
+    } finally {
+      event.target.value = '';
+    }
+  }
+
   async function choosePersistentFolder() {
     if (running || locked) return;
 
     if (typeof window === 'undefined' || typeof window.showDirectoryPicker !== 'function') {
-      inputRef.current?.click();
+      folderInputRef.current?.click();
       return;
     }
 
@@ -237,6 +269,42 @@ export default function ContentAdminPage() {
       }
       setPhase('FAILED');
       setFailed([{ path: 'FOLDER', error: error?.message || 'Could not read the selected folder.' }]);
+    }
+  }
+
+  async function chooseArchive() {
+    if (running || locked) return;
+
+    if (typeof window === 'undefined' || typeof window.showOpenFilePicker !== 'function') {
+      archiveInputRef.current?.click();
+      return;
+    }
+
+    try {
+      setPhase('SELECTING ARCHIVE');
+      setCurrent('Choose the Fortnite 7.00 .rar file');
+      setCurrentPct(0);
+      const [handle] = await window.showOpenFilePicker({
+        multiple: false,
+        types: [{
+          description: 'RAR archive',
+          accept: {
+            'application/vnd.rar': ['.rar'],
+            'application/x-rar-compressed': ['.rar']
+          }
+        }]
+      });
+      await ensureReadPermission(handle);
+      const file = await handle.getFile();
+      resetSelection([archiveEntry(file, handle)], 'ARCHIVE PERSISTENT');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setPhase('IDLE');
+        setCurrent('');
+        return;
+      }
+      setPhase('FAILED');
+      setFailed([{ path: 'ARCHIVE', error: error?.message || 'Could not read the selected archive.' }]);
     }
   }
 
@@ -266,8 +334,6 @@ export default function ContentAdminPage() {
           throw new Error('Season 7 content is already finalized and locked.');
         }
 
-        // We still hash recovered files locally so the final manifest contains a SHA-256 for every
-        // file, but we do the remote check first so nothing is uploaded unnecessarily.
         setPhase(existing.exists && existing.sizeMatches ? 'HASHING RECOVERED FILE' : 'HASHING');
         setCurrentPct(0);
         const digest = await hashEntry(entry, setCurrentPct);
@@ -325,9 +391,13 @@ export default function ContentAdminPage() {
       } catch (error) {
         let message = error?.message || 'Upload failed';
         if (error?.name === 'NotReadableError' || message.includes('requested file could not be read')) {
-          message = selectionMode === 'PERSISTENT'
-            ? 'ChromeOS still cannot open this local file through its persistent folder handle. Move the extracted Fortnite 7.00 folder to local Downloads/My files (not Google Drive, Linux files, a network share, or read-only media), then select it again.'
-            : 'This folder was selected with Chrome\'s legacy file picker. Use the new persistent folder picker instead; it re-opens each PAK from a FileSystemFileHandle and is designed for multi-GB files.';
+          if (archiveMode) {
+            message = 'ChromeOS could not keep the RAR file readable. Move the .rar into local Downloads/My files, re-select it with Select .RAR archive, then resume.';
+          } else {
+            message = selectionMode === 'PERSISTENT'
+              ? 'ChromeOS still cannot open this local file through its persistent folder handle. Move the extracted Fortnite 7.00 folder to local Downloads/My files (not Google Drive, Linux files, a network share, or read-only media), then select it again.'
+              : 'This folder was selected with Chrome\'s legacy file picker. Use the persistent folder picker instead; it re-opens each PAK from a FileSystemFileHandle and is designed for multi-GB files.';
+          }
         } else if (message.includes('Failed to retrieve the client token')) {
           message = 'Upload token failed after automatic retries. Press Resume upload; files already stored will be detected and skipped.';
         }
@@ -338,24 +408,30 @@ export default function ContentAdminPage() {
     }
 
     if (!failures.length && manifestFiles.length === files.length) {
-      try {
-        setPhase('FINALIZING');
-        setCurrent('Creating immutable Season 7 manifest');
+      if (archiveMode) {
+        setPhase('ARCHIVE STORED');
+        setCurrent(`RAR stored privately · ${formatBytes(totalBytes)}`);
         setCurrentPct(100);
-        const response = await fetch('/api/content/finalize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: uploadKey, files: manifestFiles })
-        });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body?.error || 'Finalization failed');
-        setLocked(true);
-        setPhase('LOCKED');
-        setCurrent(`LOCKED · ${body.fileCount} files · ${formatBytes(body.totalSize)}`);
-      } catch (error) {
-        failures.push({ path: 'FINAL MANIFEST', error: error?.message || 'Finalization failed' });
-        setFailed([...failures]);
-        setPhase('FAILED');
+      } else {
+        try {
+          setPhase('FINALIZING');
+          setCurrent('Creating immutable Season 7 manifest');
+          setCurrentPct(100);
+          const response = await fetch('/api/content/finalize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: uploadKey, files: manifestFiles })
+          });
+          const body = await response.json();
+          if (!response.ok) throw new Error(body?.error || 'Finalization failed');
+          setLocked(true);
+          setPhase('LOCKED');
+          setCurrent(`LOCKED · ${body.fileCount} files · ${formatBytes(body.totalSize)}`);
+        } catch (error) {
+          failures.push({ path: 'FINAL MANIFEST', error: error?.message || 'Finalization failed' });
+          setFailed([...failures]);
+          setPhase('FAILED');
+        }
       }
     } else if (failures.length) {
       setPhase('FAILED');
@@ -370,8 +446,8 @@ export default function ContentAdminPage() {
         <span className="eyebrow">Project Zero · private content</span>
         <h1>Season 7 Content Manager</h1>
         <p>
-          Select the extracted Fortnite 7.00 folder. On Chrome/ChromeOS the manager now uses persistent directory
-          handles so multi-gigabyte PAK files are reopened immediately before hashing and upload.
+          On Chromebook you can now upload either the extracted Fortnite 7.00 folder or the original .rar archive.
+          Folder mode creates the Xbox-ready multi-file manifest; RAR mode stores the source archive privately for the next extraction step.
         </p>
       </div>
 
@@ -389,7 +465,7 @@ export default function ContentAdminPage() {
         />
 
         <input
-          ref={inputRef}
+          ref={folderInputRef}
           type="file"
           multiple
           webkitdirectory=""
@@ -399,9 +475,21 @@ export default function ContentAdminPage() {
           style={{ display: 'none' }}
         />
 
+        <input
+          ref={archiveInputRef}
+          type="file"
+          accept=".rar,application/vnd.rar,application/x-rar-compressed"
+          onChange={chooseLegacyArchive}
+          disabled={running || locked}
+          style={{ display: 'none' }}
+        />
+
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <button className="btn btn-ghost" type="button" onClick={choosePersistentFolder} disabled={running || locked}>
-            Select Fortnite 7.00 folder
+            Select extracted folder
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={chooseArchive} disabled={running || locked}>
+            Select .RAR archive
           </button>
           <button
             className="btn btn-primary"
@@ -409,14 +497,22 @@ export default function ContentAdminPage() {
             onClick={startUpload}
             disabled={running || locked || !files.length || !key.trim()}
           >
-            {locked ? 'Build locked' : running ? `${phase}…` : failed.length ? 'Resume upload' : 'Hash, upload and lock build'}
+            {locked
+              ? 'Build locked'
+              : running
+                ? `${phase}…`
+                : failed.length
+                  ? 'Resume upload'
+                  : archiveMode
+                    ? 'Upload RAR archive'
+                    : 'Hash, upload and lock build'}
           </button>
         </div>
 
         <div className="rule" />
         <div className="kv"><span>Files selected</span><b>{files.length}</b></div>
         <div className="kv"><span>Total size</span><b>{formatBytes(totalBytes)}</b></div>
-        <div className="kv"><span>Folder access</span><b>{selectionMode}</b></div>
+        <div className="kv"><span>Selection</span><b>{selectionMode}</b></div>
         <div className="kv"><span>Ready this run</span><b>{completed} / {files.length}</b></div>
         <div className="kv"><span>Recovered from storage</span><b>{resumed}</b></div>
         <div className="kv"><span>State</span><b>{phase}</b></div>
@@ -434,6 +530,12 @@ export default function ContentAdminPage() {
         {selectionMode === 'LEGACY' ? (
           <div className="alert" style={{ marginTop: 22 }}>
             This browser fell back to legacy folder selection. For the 4+ GB PAKs, use current desktop Chrome/ChromeOS so the persistent folder picker is available.
+          </div>
+        ) : null}
+
+        {archiveMode ? (
+          <div className="alert" style={{ marginTop: 22 }}>
+            <b>RAR source mode.</b> The archive is uploaded as one private multipart Blob, so you do not need to extract it on the Chromebook first. This does not create the Xbox content manifest yet: the RAR still has to be unpacked into Engine/ and FortniteGame/ files before the current Xbox downloader can use it.
           </div>
         ) : null}
 
@@ -455,8 +557,7 @@ export default function ContentAdminPage() {
         ) : null}
 
         <p className="note" style={{ marginTop: 22 }}>
-          Already-uploaded files are recovered from private storage. Large files use multipart upload. SHA-256 is
-          calculated locally so the Xbox can verify the exact bytes after download. Only upload files you are authorized to store.
+          Already-uploaded data is recovered from private storage. Large files use multipart upload. SHA-256 is calculated locally so the exact bytes can be checked later. Only upload files you are authorized to store.
         </p>
       </div>
     </div>
