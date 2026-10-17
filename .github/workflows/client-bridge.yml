@@ -17,6 +17,7 @@ jobs:
         run: |
           $vswhere="${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $msbuild=& $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+          if(-not $msbuild){throw 'MSBuild not found'}
           "MSBUILD=$msbuild" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Certificate
         shell: pwsh
@@ -33,16 +34,21 @@ jobs:
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           & $env:MSBUILD ProjectZeroClient.csproj /p:Configuration=Release /p:Platform=x64 /p:AppxBundle=Always /p:AppxBundlePlatforms=x64 /p:UapAppxPackageBuildMode=SideloadOnly /p:AppxPackageSigningEnabled=true /p:PackageCertificateKeyFile="$PWD\ProjectZeroClient.pfx" /p:PackageCertificatePassword=$env:SIGN_PW /p:AppxPackageDir="$PWD\AppPackages" /v:normal *>&1 | Tee-Object build.log
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
-      - name: Collect x64 dependencies
+      - name: Make clean Xbox install folder
         shell: pwsh
         run: |
-          $out=Join-Path $PWD 'XboxInstall'; New-Item -ItemType Directory -Force $out | Out-Null
-          Get-ChildItem AppPackages -Recurse -File | Where-Object { $_.Extension -in '.msixbundle','.appxbundle' } | ForEach-Object { Copy-Item $_.FullName $out -Force }
-          Get-ChildItem AppPackages -Recurse -File -Filter '*.appx' | Where-Object { $_.FullName -match '[\\/]x64[\\/]' -or $_.Name -match 'x64' -or $_.Name -match 'CoreFramework|CoreRuntime' } | ForEach-Object { Copy-Item $_.FullName $out -Force }
+          $out=Join-Path $PWD 'XboxInstall'; $deps=Join-Path $out 'Dependencies'
+          New-Item -ItemType Directory -Force -Path $out,$deps | Out-Null
+          $bundle=Get-ChildItem AppPackages -Recurse -File | Where-Object { $_.Extension -in '.msixbundle','.appxbundle' } | Select-Object -First 1
+          if(-not $bundle){throw 'Client bundle not generated'}
+          Copy-Item $bundle.FullName $out -Force
           Copy-Item ProjectZeroClient.cer $out -Force
-          @('INSTALL: package = ProjectZeroClient msixbundle','DEPENDENCIES: add every .appx in this folder','Do not add the .cer as a dependency.') | Set-Content (Join-Path $out 'INSTALL.txt')
+          $generated=Get-ChildItem AppPackages -Recurse -File -Filter '*.appx' | Where-Object { $_.FullName -match '[\\/]x64[\\/]' -or $_.Name -match 'x64' }
+          foreach($f in $generated){Copy-Item $f.FullName (Join-Path $deps $f.Name) -Force}
+          @('PROJECT ZERO CLIENT BRIDGE - XBOX TEST','Package: use the .msixbundle','Dependencies: add every .appx inside Dependencies','Do not add the .cer as a dependency.','Install beside the Project Zero launcher, then link again.') | Set-Content (Join-Path $out 'INSTALL.txt')
+          Get-ChildItem $out -Recurse | ForEach-Object { Write-Host $_.FullName }
       - uses: actions/upload-artifact@v4
         with:
           name: ProjectZero-ClientBridge-Xbox
-          path: client/ProjectZeroClient/XboxInstall/*
+          path: client/ProjectZeroClient/XboxInstall/**
           if-no-files-found: error
