@@ -126,7 +126,7 @@ namespace ProjectZero.Pages
                     return;
                 }
 
-                ContentStore.MarkInstalled(_manifest);
+                await ContentStore.MarkInstalledAsync(_manifest);
                 IntegrityValue.Text = "VERIFIED";
                 IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
                 MarkReady();
