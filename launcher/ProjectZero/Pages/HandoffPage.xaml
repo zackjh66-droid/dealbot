@@ -9,109 +9,136 @@
     RequiresPointer="Never"
     XYFocusKeyboardNavigation="Enabled">
 
-    <Grid Padding="54,34,54,30">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="74" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="58" />
-        </Grid.RowDefinitions>
+    <Grid>
+        <Image Source="https://cdn2.unrealengine.com/Fortnite%2Fblog%2Ftake-to-the-skies-in-season-7%2FBR07_News_Featured_16_9-1920x1080-c8c58d82b2986bf9615c839d53bb7763c06895c5.jpg"
+               Stretch="UniformToFill" Opacity="0.9" />
+        <Rectangle Fill="{StaticResource PzHeroScrim}" />
+        <Rectangle Fill="#50070C13" />
 
-        <Grid Grid.Row="0">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="15">
-                <controls:BrandMark Width="43" Height="43" />
-                <StackPanel VerticalAlignment="Center" Spacing="1">
-                    <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="21" />
-                    <TextBlock Text="SEASON 7 · XBOX" Style="{StaticResource PzMono}" FontSize="10" />
+        <Grid Padding="58,38,58,32">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="78" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="62" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="15">
+                    <controls:BrandMark Width="46" Height="46" />
+                    <StackPanel VerticalAlignment="Center" Spacing="0">
+                        <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="23" />
+                        <TextBlock Text="SEASON 7 / LAUNCH SESSION" Style="{StaticResource PzMono}" FontSize="10" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="10">
-                <Ellipse Width="8" Height="8" Fill="{StaticResource PzOkBrush}" />
-                <TextBlock Text="SESSION ACTIVE" Style="{StaticResource PzMono}" FontSize="10" VerticalAlignment="Center" />
-            </StackPanel>
-        </Grid>
-        <Border Grid.Row="0" Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Bottom" />
-
-        <Grid Grid.Row="1" Margin="0,30,0,26">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.45*" />
-                <ColumnDefinition Width="0.85*" />
-            </Grid.ColumnDefinitions>
-
-            <StackPanel VerticalAlignment="Center" Margin="0,0,44,0">
-                <TextBlock Text="READY TO LAUNCH" Style="{StaticResource PzEyebrow}" />
-                <TextBlock x:Name="UsernameText" Text="PLAYER"
-                           Style="{StaticResource PzDisplay}" FontSize="56" Margin="0,7,0,0" />
-                <TextBlock x:Name="AccountLineText" Text="ACCOUNT · SEASON 7"
-                           Style="{StaticResource PzMono}" FontSize="12" />
-
-                <Border Background="#9E0C0C11" BorderBrush="{StaticResource PzLineBrush}" BorderThickness="1"
-                        CornerRadius="6" Padding="20" Margin="0,32,0,0" MaxWidth="650" HorizontalAlignment="Left">
-                    <StackPanel Spacing="12">
-                        <TextBlock x:Name="LogProfile" Text="PROFILE MOUNTED" Style="{StaticResource PzMono}" FontSize="11" />
-                        <TextBlock x:Name="LogBuild" Text="BUILD RESOLVED" Style="{StaticResource PzMono}" FontSize="11" />
-                        <TextBlock x:Name="LogTicket" Text="GAME TICKET" Style="{StaticResource PzMono}" FontSize="11" />
-                        <TextBlock x:Name="LogHandoff" Text="CLIENT HANDOFF" Style="{StaticResource PzMono}" FontSize="11" />
+                <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Background="#B00C121A" BorderBrush="#669CB2C9" BorderThickness="1"
+                        CornerRadius="2" Padding="14,8">
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource PzOkBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="SESSION ACTIVE" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="White" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
+            </Grid>
 
-                <Grid Height="4" Width="520" HorizontalAlignment="Left" Margin="0,24,0,0" Background="#FF1B1B23">
-                    <Rectangle x:Name="ProgressFill" Width="30" Height="4" HorizontalAlignment="Left"
-                               Fill="{StaticResource PzBarGradient}" />
-                </Grid>
+            <Grid Grid.Row="1" Margin="0,24,0,26">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.35*" />
+                    <ColumnDefinition Width="0.76*" />
+                </Grid.ColumnDefinitions>
 
-                <TextBlock x:Name="StatusText" Text="NEGOTIATING SESSION"
-                           Style="{StaticResource PzMono}" FontSize="12"
-                           Foreground="{StaticResource PzTextBrush}" Margin="0,16,0,0" />
-            </StackPanel>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,46,0" MaxWidth="760">
+                    <TextBlock Text="CONSOLE READY" Style="{StaticResource PzEyebrow}" />
+                    <TextBlock Text="WELCOME BACK" Style="{StaticResource PzDisplay}" FontSize="62" Margin="0,5,0,0" />
+                    <TextBlock x:Name="UsernameText" Text="PLAYER"
+                               Style="{StaticResource PzDisplay}" FontSize="38" Foreground="{StaticResource PzIceBrush}" />
+                    <TextBlock x:Name="AccountLineText" Text="ACCOUNT / SEASON 7"
+                               Style="{StaticResource PzMono}" FontSize="12" Foreground="#FFE1E8F0" Margin="0,3,0,0" />
 
-            <Border Grid.Column="1" Style="{StaticResource PzPanel}" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="CLIENT HANDOFF" Style="{StaticResource PzEyebrow}" />
+                    <Border Background="#D90B1018" BorderBrush="#789FB6CF" BorderThickness="1"
+                            CornerRadius="2" Padding="22,18" Margin="0,28,0,0"
+                            MaxWidth="700" HorizontalAlignment="Left">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="13">
+                                <TextBlock Text="SESSION CHECK" Style="{StaticResource PzEyebrow}" FontSize="10" />
+                                <TextBlock x:Name="LogProfile" Text="PROFILE MOUNTED" Style="{StaticResource PzMono}" FontSize="11" Foreground="White" />
+                                <TextBlock x:Name="LogBuild" Text="BUILD RESOLVED" Style="{StaticResource PzMono}" FontSize="11" Foreground="White" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="13" Margin="24,0,0,0">
+                                <TextBlock Text="CLIENT CHECK" Style="{StaticResource PzEyebrow}" FontSize="10" />
+                                <TextBlock x:Name="LogTicket" Text="GAME TICKET" Style="{StaticResource PzMono}" FontSize="11" Foreground="White" />
+                                <TextBlock x:Name="LogHandoff" Text="CLIENT HANDOFF" Style="{StaticResource PzMono}" FontSize="11" Foreground="White" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
 
-                    <Grid Margin="0,22,0,0">
-                        <TextBlock Text="TARGET" Style="{StaticResource PzMono}" FontSize="10" />
-                        <TextBlock Text="XBOX · UWP · x64" Style="{StaticResource PzMono}" FontSize="10"
-                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
+                    <Grid Height="6" Width="560" HorizontalAlignment="Left" Margin="0,22,0,0" Background="#84364A5E">
+                        <Rectangle x:Name="ProgressFill" Width="30" Height="6" HorizontalAlignment="Left"
+                                   Fill="{StaticResource PzBarGradient}" />
                     </Grid>
-                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
-                    <Grid>
-                        <TextBlock Text="BUILD" Style="{StaticResource PzMono}" FontSize="10" />
-                        <TextBlock x:Name="BuildText" Text="—" Style="{StaticResource PzMono}" FontSize="10"
-                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
-                    </Grid>
-                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
-                    <Grid>
-                        <TextBlock Text="PROTOCOL" Style="{StaticResource PzMono}" FontSize="10" />
-                        <TextBlock Text="projectzero-game" Style="{StaticResource PzMono}" FontSize="10"
-                                   Foreground="{StaticResource PzVioletBrightBrush}" HorizontalAlignment="Right" />
-                    </Grid>
 
-                    <TextBlock x:Name="ClientStateText" Text="AWAITING HANDOFF"
-                               Style="{StaticResource PzMono}" FontSize="11"
-                               Foreground="{StaticResource PzVioletBrightBrush}" Margin="0,22,0,0" />
-                    <TextBlock x:Name="ClientHelpText" Visibility="Collapsed"
-                               Style="{StaticResource PzMono}" FontSize="10"
-                               TextWrapping="Wrap" Margin="0,11,0,0" LineHeight="18" />
-
-                    <Button x:Name="RetryButton" Content="RETRY HANDOFF" Visibility="Collapsed"
-                            Style="{StaticResource PzButton}" HorizontalAlignment="Stretch"
-                            Margin="0,20,0,0" Click="Retry_Click" />
-                    <Button x:Name="UnlinkButton" Content="UNLINK CONSOLE"
-                            Style="{StaticResource PzGhostButton}" HorizontalAlignment="Stretch"
-                            Margin="0,11,0,0" Click="Unlink_Click" />
+                    <TextBlock x:Name="StatusText" Text="NEGOTIATING SESSION"
+                               FontFamily="Segoe UI Semibold" FontSize="13"
+                               Foreground="White" Margin="0,13,0,0" />
                 </StackPanel>
-            </Border>
-        </Grid>
 
-        <Grid Grid.Row="2">
-            <Border Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Top" />
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="24">
-                <TextBlock Text="◀▶▲▼  D-PAD / LEFT STICK" Style="{StaticResource PzMono}" />
-                <TextBlock Text="A  SELECT" Style="{StaticResource PzMono}" />
-                <TextBlock Text="B  BACK" Style="{StaticResource PzMono}" />
-            </StackPanel>
-            <TextBlock x:Name="FooterText" Text="7.00 / CL-4629139" Style="{StaticResource PzMono}"
-                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+                <Border Grid.Column="1" VerticalAlignment="Center"
+                        Background="#E40B1119" BorderBrush="#88A8BED5" BorderThickness="1"
+                        CornerRadius="2" Padding="26">
+                    <StackPanel>
+                        <TextBlock Text="CLIENT HANDOFF" Style="{StaticResource PzEyebrow}" />
+                        <TextBlock Text="PROJECT ZERO CLIENT"
+                                   Style="{StaticResource PzDisplay}" FontSize="28" Margin="0,7,0,18" />
+
+                        <Grid>
+                            <TextBlock Text="TARGET" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock Text="XBOX / UWP / x64" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="White" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                        <Grid>
+                            <TextBlock Text="BUILD" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock x:Name="BuildText" Text="—" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="White" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+                        <Grid>
+                            <TextBlock Text="PROTOCOL" Style="{StaticResource PzMono}" FontSize="10" />
+                            <TextBlock Text="projectzero-game" Style="{StaticResource PzMono}" FontSize="10"
+                                       Foreground="{StaticResource PzIceBrush}" HorizontalAlignment="Right" />
+                        </Grid>
+
+                        <TextBlock x:Name="ClientStateText" Text="AWAITING HANDOFF"
+                                   FontFamily="Segoe UI Semibold" FontSize="12"
+                                   Foreground="{StaticResource PzVioletBrightBrush}" Margin="0,22,0,0" />
+                        <TextBlock x:Name="ClientHelpText" Visibility="Collapsed"
+                                   FontFamily="Segoe UI" FontSize="11" Foreground="#FFD4DEEA"
+                                   TextWrapping="Wrap" Margin="0,10,0,0" LineHeight="18" />
+
+                        <Button x:Name="RetryButton" Content="RETRY HANDOFF" Visibility="Collapsed"
+                                Style="{StaticResource PzButton}" HorizontalAlignment="Stretch"
+                                Margin="0,20,0,0" Click="Retry_Click" />
+                        <Button x:Name="UnlinkButton" Content="UNLINK CONSOLE"
+                                Style="{StaticResource PzGhostButton}" HorizontalAlignment="Stretch"
+                                Margin="0,11,0,0" Click="Unlink_Click" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="2">
+                <Border Height="1" Background="#6A9CB2C9" VerticalAlignment="Top" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="28">
+                    <TextBlock Text="D-PAD / LEFT STICK  NAVIGATE" Style="{StaticResource PzMono}" Foreground="White" />
+                    <TextBlock Text="A  SELECT" Style="{StaticResource PzMono}" Foreground="White" />
+                    <TextBlock Text="B  BACK" Style="{StaticResource PzMono}" Foreground="White" />
+                </StackPanel>
+                <TextBlock x:Name="FooterText" Text="7.00 / CL-4629139" Style="{StaticResource PzMono}"
+                           Foreground="#FFDCE6F0" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
         </Grid>
     </Grid>
 </Page>
