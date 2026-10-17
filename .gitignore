@@ -1,0 +1,24 @@
+# Project Zero
+.vs/
+**/bin/
+**/obj/
+node_modules/
+.next/
+.env
+.env.*
+!.env.example
+*.pfx
+*.cer
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.zip
+
+# Never commit game/client binaries or extracted Fortnite content
+FortniteClient*/
+GameFiles/
+ClientFiles/
+*.pak
+*.ucas
+*.utoc
