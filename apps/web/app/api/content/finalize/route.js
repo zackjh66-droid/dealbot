@@ -62,9 +62,9 @@ export async function POST(request) {
       }
       seen.add(path.toLowerCase());
 
-      const size = Number(entry?.size || 0);
+      const size = Number(entry?.size ?? -1);
       const sha256 = String(entry?.sha256 || '').trim().toLowerCase();
-      if (!Number.isSafeInteger(size) || size <= 0 || !/^[a-f0-9]{64}$/.test(sha256)) {
+      if (!Number.isSafeInteger(size) || size < 0 || !/^[a-f0-9]{64}$/.test(sha256)) {
         throw new Error('Invalid metadata for ' + path);
       }
 
