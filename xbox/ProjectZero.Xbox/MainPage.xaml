@@ -1,0 +1,13 @@
+<Page x:Class="ProjectZero.Xbox.MainPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="#080B12">
+  <Grid Padding="64">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel><TextBlock Text="PROJECT ZERO" Foreground="#8DA2C8" FontSize="20" CharacterSpacing="250"/><TextBlock Text="Connect your account" Foreground="White" FontSize="52" FontWeight="SemiBold" Margin="0,12,0,0"/></StackPanel>
+    <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="760">
+      <TextBlock x:Name="StatusText" Text="Requesting a secure device code…" Foreground="#AEB9CB" FontSize="24" HorizontalAlignment="Center"/>
+      <TextBlock x:Name="CodeText" Text="---- ----" Foreground="White" FontFamily="Consolas" FontSize="68" CharacterSpacing="160" HorizontalAlignment="Center" Margin="0,28,0,12"/>
+      <TextBlock x:Name="UrlText" Text="" Foreground="#8DA2C8" FontSize="24" HorizontalAlignment="Center"/>
+      <ProgressRing x:Name="Busy" IsActive="True" Width="42" Height="42" Margin="0,30,0,0"/>
+    </StackPanel>
+    <TextBlock Grid.Row="2" Text="Project Zero accounts are separate from Microsoft and Epic accounts." Foreground="#697891" FontSize="16"/>
+  </Grid>
+</Page>
