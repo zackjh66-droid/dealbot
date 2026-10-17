@@ -119,7 +119,10 @@ jobs:
 
       - name: List bundles
         shell: pwsh
-        run: Get-ChildItem -Recurse AppPackages -Include *.msix,*.appx,*.appxbundle,*.msixbundle,*.cer | Select-Object FullName,Length
+        run: |
+          Get-ChildItem -Recurse AppPackages -File | Select-Object -First 40 | ForEach-Object {
+            Write-Host "::warning::pack: $($_.FullName.Substring($PWD.Path.Length + 1)) $($_.Length)"
+          }
 
       - name: Publish launcher release
         if: github.event_name == 'push' && steps.build.outcome == 'success'
@@ -128,6 +131,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $bundle = Get-ChildItem -Recurse AppPackages -Include *.msixbundle,*.appxbundle,*.msix,*.appx |
+            Where-Object { $_.Name -like 'ProjectZero*' } |
             Sort-Object Length -Descending | Select-Object -First 1
           if (-not $bundle) { throw 'No package produced' }
           $cer = Get-ChildItem -Recurse AppPackages -Filter ProjectZero.cer | Select-Object -First 1
