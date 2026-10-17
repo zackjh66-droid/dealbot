@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PREFIX = 'season7/7.00/4629139/';
+const FINAL_MANIFEST = PREFIX + '.projectzero-manifest.json';
 
 function sameSecret(a, b) {
   const left = Buffer.from(String(a || ''));
@@ -22,13 +23,12 @@ function cleanRelativePath(value) {
   return parts.join('/');
 }
 
-async function assertNotAlreadyUploaded(pathname) {
+async function exists(pathname) {
   try {
-    await head(pathname);
-    throw new Error('This file is already uploaded and locked. Existing content cannot be replaced.');
+    const metadata = await head(pathname);
+    return metadata || true;
   } catch (error) {
-    if (error?.message?.includes('already uploaded and locked')) throw error;
-    if (error?.name === 'BlobNotFoundError' || error?.status === 404 || error?.statusCode === 404) return;
+    if (error?.name === 'BlobNotFoundError' || error?.status === 404 || error?.statusCode === 404) return false;
     throw error;
   }
 }
@@ -51,6 +51,10 @@ export async function POST(request) {
           throw new Error('Invalid content upload key');
         }
 
+        if (await exists(FINAL_MANIFEST)) {
+          throw new Error('Season 7 content is finalized and locked. No more files can be added or changed.');
+        }
+
         const relativePath = cleanRelativePath(payload.relativePath);
         const expectedPathname = PREFIX + relativePath;
         if (pathname !== expectedPathname) {
@@ -58,23 +62,27 @@ export async function POST(request) {
         }
 
         const size = Number(payload.size || 0);
-        if (!Number.isSafeInteger(size) || size <= 0) {
-          throw new Error('Invalid file size');
+        const sha256 = String(payload.sha256 || '').trim().toLowerCase();
+        if (!Number.isSafeInteger(size) || size <= 0 || !/^[a-f0-9]{64}$/.test(sha256)) {
+          throw new Error('Invalid file size or SHA-256');
         }
 
-        await assertNotAlreadyUploaded(expectedPathname);
+        if (await exists(expectedPathname)) {
+          throw new Error('This file is already uploaded and locked. Existing content cannot be replaced.');
+        }
 
         return {
           addRandomSuffix: false,
-          tokenPayload: JSON.stringify({ relativePath, size })
+          tokenPayload: JSON.stringify({ relativePath, size, sha256 })
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         const meta = JSON.parse(tokenPayload || '{}');
-        console.log('Project Zero content locked', {
+        console.log('Project Zero content uploaded', {
           pathname: blob.pathname,
           relativePath: meta.relativePath,
           size: meta.size,
+          sha256: meta.sha256,
           etag: blob.etag
         });
       }
