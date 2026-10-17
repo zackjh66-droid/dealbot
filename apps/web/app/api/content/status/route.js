@@ -1,10 +1,10 @@
-import { head } from '@vercel/blob';
 import {
   contentRequestAuthorized,
   contentResponseHeaders,
   hasValidContentSession,
   validContentUploadKey
 } from '../../../../lib/content-upload-auth';
+import { headOrNull } from '../../../../lib/blob-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,15 +21,6 @@ function cleanRelativePath(value) {
   return parts.join('/');
 }
 
-async function tryHead(pathname) {
-  try {
-    return await head(pathname);
-  } catch (error) {
-    if (error?.name === 'BlobNotFoundError' || error?.status === 404 || error?.statusCode === 404) return null;
-    throw error;
-  }
-}
-
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -43,7 +34,7 @@ export async function POST(request) {
     }
 
     const headers = contentResponseHeaders({ refreshSession: suppliedKeyValid || sessionValid });
-    const finalized = await tryHead(FINAL_MANIFEST);
+    const finalized = await headOrNull(FINAL_MANIFEST);
     if (finalized) {
       return Response.json({ locked: true }, { headers });
     }
@@ -54,7 +45,7 @@ export async function POST(request) {
       throw new Error('Invalid file size');
     }
 
-    const blob = await tryHead(PREFIX + relativePath);
+    const blob = await headOrNull(PREFIX + relativePath);
     if (!blob) {
       return Response.json({ locked: false, exists: false }, { headers });
     }
