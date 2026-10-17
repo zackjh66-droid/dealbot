@@ -116,17 +116,46 @@ namespace ProjectZero.Services
         public static async Task<ContentManifest> GetContentManifestAsync(string consoleToken)
         {
             var jo = await GetJsonAsync("/api/content/manifest", consoleToken);
-            return new ContentManifest
+            var result = new ContentManifest
             {
                 Available = GetBool(jo, "available"),
+                Mode = GetString(jo, "mode"),
                 Build = GetString(jo, "build"),
                 Cl = GetString(jo, "cl"),
                 FileName = GetString(jo, "fileName"),
                 Url = GetString(jo, "url"),
                 Sha256 = GetString(jo, "sha256"),
                 Size = (ulong)Math.Max(0, GetLong(jo, "size")),
+                FileCount = (int)Math.Max(0, GetLong(jo, "fileCount")),
+                TotalSize = (ulong)Math.Max(0, GetLong(jo, "totalSize")),
+                Files = new List<ContentFileManifest>(),
                 Reason = GetString(jo, "reason")
             };
+
+            var files = GetArray(jo, "files");
+            if (files != null)
+            {
+                foreach (var item in files)
+                {
+                    if (item.ValueType != JsonValueType.Object) continue;
+                    var file = item.GetObject();
+                    result.Files.Add(new ContentFileManifest
+                    {
+                        Path = GetString(file, "path"),
+                        Url = GetString(file, "url"),
+                        Sha256 = GetString(file, "sha256"),
+                        Etag = GetString(file, "etag"),
+                        Size = (ulong)Math.Max(0, GetLong(file, "size"))
+                    });
+                }
+            }
+
+            if (result.FileCount == 0 && result.Files.Count > 0)
+            {
+                result.FileCount = result.Files.Count;
+            }
+
+            return result;
         }
 
         private static BuildInfo ReadBuild(JsonObject item)
