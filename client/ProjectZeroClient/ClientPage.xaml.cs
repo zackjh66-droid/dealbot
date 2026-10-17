@@ -1,4 +1,8 @@
 using System;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Threading.Tasks;
 using Windows.Data.Json;
 using Windows.Storage;
 using Windows.UI.Xaml.Controls;
@@ -31,11 +35,12 @@ namespace ProjectZeroClient
                 protocolState = "activation=DIRECT";
             }
 
-            var contentState = await ReadContentStateAsync();
+            PayloadText.Text = protocolState + "\ncontent=CHECKING";
+            var contentState = await ReadAndVerifyContentStateAsync();
             PayloadText.Text = protocolState + "\n" + contentState;
         }
 
-        private static async System.Threading.Tasks.Task<string> ReadContentStateAsync()
+        private static async Task<string> ReadAndVerifyContentStateAsync()
         {
             try
             {
@@ -55,6 +60,8 @@ namespace ProjectZeroClient
                 var fileName = GetString(jo, "fileName");
                 var build = GetString(jo, "build");
                 var cl = GetString(jo, "cl");
+                var expectedSha = GetString(jo, "sha256");
+                var expectedSize = GetUlong(jo, "size");
 
                 if (string.IsNullOrWhiteSpace(fileName))
                 {
@@ -63,12 +70,33 @@ namespace ProjectZeroClient
 
                 var file = await folder.GetFileAsync(fileName);
                 var props = await file.GetBasicPropertiesAsync();
+                if (expectedSize > 0 && props.Size != expectedSize)
+                {
+                    return "content=NOT_VERIFIED\ncontent_error=SIZE_MISMATCH";
+                }
+
+                if (!string.IsNullOrWhiteSpace(expectedSha))
+                {
+                    string actualSha;
+                    using (var stream = await file.OpenStreamForReadAsync())
+                    using (var sha = SHA256.Create())
+                    {
+                        var hash = await Task.Run(() => sha.ComputeHash(stream));
+                        actualSha = string.Concat(hash.Select(b => b.ToString("x2")));
+                    }
+
+                    if (!string.Equals(actualSha, expectedSha.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return "content=NOT_VERIFIED\ncontent_error=SHA256_MISMATCH";
+                    }
+                }
 
                 return "content=VERIFIED" +
                        "\ncontent_file=" + file.Name +
                        "\ncontent_build=" + (build ?? "") +
                        "\ncontent_cl=" + (cl ?? "") +
-                       "\ncontent_bytes=" + props.Size;
+                       "\ncontent_bytes=" + props.Size +
+                       "\ncontent_hash=OK";
             }
             catch (Exception ex)
             {
@@ -85,6 +113,18 @@ namespace ProjectZeroClient
             }
 
             return null;
+        }
+
+        private static ulong GetUlong(JsonObject jo, string key)
+        {
+            IJsonValue value;
+            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Number)
+            {
+                var number = value.GetNumber();
+                if (number > 0) return (ulong)number;
+            }
+
+            return 0;
         }
     }
 }
