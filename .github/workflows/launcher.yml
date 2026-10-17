@@ -14,6 +14,7 @@ on:
       - '.github/workflows/launcher.yml'
   workflow_dispatch:
 
+# Project Zero Xbox dependency build
 permissions:
   contents: write
   pull-requests: write
