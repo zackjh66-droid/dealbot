@@ -11,9 +11,7 @@ namespace ProjectZero.Services
 {
     public class ApiException : Exception
     {
-        public ApiException(string message) : base(message)
-        {
-        }
+        public ApiException(string message) : base(message) { }
     }
 
     public static class ApiClient
@@ -115,6 +113,22 @@ namespace ProjectZero.Services
             return result;
         }
 
+        public static async Task<ContentManifest> GetContentManifestAsync(string consoleToken)
+        {
+            var jo = await GetJsonAsync("/api/content/manifest", consoleToken);
+            return new ContentManifest
+            {
+                Available = GetBool(jo, "available"),
+                Build = GetString(jo, "build"),
+                Cl = GetString(jo, "cl"),
+                FileName = GetString(jo, "fileName"),
+                Url = GetString(jo, "url"),
+                Sha256 = GetString(jo, "sha256"),
+                Size = (ulong)Math.Max(0, GetLong(jo, "size")),
+                Reason = GetString(jo, "reason")
+            };
+        }
+
         private static BuildInfo ReadBuild(JsonObject item)
         {
             return new BuildInfo
@@ -132,51 +146,65 @@ namespace ProjectZero.Services
         private static string GetString(JsonObject jo, string key)
         {
             IJsonValue value;
-            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.String)
-            {
-                return value.GetString();
-            }
-
-            return null;
+            return jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.String
+                ? value.GetString()
+                : null;
         }
 
         private static long GetLong(JsonObject jo, string key)
         {
             IJsonValue value;
-            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Number)
-            {
-                return (long)value.GetNumber();
-            }
+            return jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Number
+                ? (long)value.GetNumber()
+                : 0;
+        }
 
-            return 0;
+        private static bool GetBool(JsonObject jo, string key)
+        {
+            IJsonValue value;
+            return jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Boolean && value.GetBoolean();
         }
 
         private static JsonObject GetObject(JsonObject jo, string key)
         {
             IJsonValue value;
-            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Object)
-            {
-                return value.GetObject();
-            }
-
-            return null;
+            return jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Object
+                ? value.GetObject()
+                : null;
         }
 
         private static JsonArray GetArray(JsonObject jo, string key)
         {
             IJsonValue value;
-            if (jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Array)
-            {
-                return value.GetArray();
-            }
+            return jo.TryGetValue(key, out value) && value.ValueType == JsonValueType.Array
+                ? value.GetArray()
+                : null;
+        }
 
-            return null;
+        private static async Task<JsonObject> GetJsonAsync(string path, string bearer)
+        {
+            using (var request = new HttpRequestMessage(HttpMethod.Get, AppConfig.BaseUrl + path))
+            {
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrEmpty(bearer))
+                {
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                }
+                using (var response = await Http.SendAsync(request))
+                {
+                    var text = await response.Content.ReadAsStringAsync();
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new ApiException("HTTP " + (int)response.StatusCode + " " + text);
+                    }
+                    return JsonObject.Parse(text);
+                }
+            }
         }
 
         private static async Task<JsonObject> PostJsonAsync(string path, JsonObject payload, string bearer)
         {
-            var url = AppConfig.BaseUrl + path;
-            using (var request = new HttpRequestMessage(HttpMethod.Post, url))
+            using (var request = new HttpRequestMessage(HttpMethod.Post, AppConfig.BaseUrl + path))
             {
                 request.Content = new StringContent(payload.Stringify(), Encoding.UTF8, "application/json");
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -192,7 +220,6 @@ namespace ProjectZero.Services
                     {
                         throw new ApiException("HTTP " + (int)response.StatusCode + " " + text);
                     }
-
                     return JsonObject.Parse(text);
                 }
             }
