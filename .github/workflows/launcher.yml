@@ -14,7 +14,6 @@ on:
       - '.github/workflows/launcher.yml'
   workflow_dispatch:
 
-# Project Zero Xbox dependency build
 permissions:
   contents: write
   pull-requests: write
@@ -38,23 +37,15 @@ jobs:
           $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
           if (-not $msbuild) { throw 'MSBuild not found' }
           "MSBUILD=$msbuild" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Using $msbuild"
 
       - name: Generate signing certificate
         shell: pwsh
         run: |
           $pw = [guid]::NewGuid().ToString('N')
           $secure = ConvertTo-SecureString $pw -AsPlainText -Force
-          $cert = New-SelfSignedCertificate `
-            -Type Custom `
-            -Subject 'CN=Project Zero' `
-            -KeyUsage DigitalSignature `
-            -FriendlyName 'Project Zero CI' `
-            -CertStoreLocation 'Cert:\CurrentUser\My' `
-            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+          $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=Project Zero' -KeyUsage DigitalSignature -FriendlyName 'Project Zero CI' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
           Export-PfxCertificate -Cert $cert -FilePath "$PWD\ProjectZero.pfx" -Password $secure | Out-Null
           Export-Certificate -Cert $cert -FilePath "$PWD\ProjectZero.cer" | Out-Null
-          Copy-Item "$PWD\ProjectZero.cer" "$PWD\ProjectZero.ci.cer"
           "SIGN_PW=$pw" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Restore
@@ -65,82 +56,58 @@ jobs:
       - name: Build and sign bundle
         shell: pwsh
         run: |
-          & $env:MSBUILD ProjectZero.csproj `
-            /p:Configuration=Release `
-            /p:Platform=x64 `
-            /p:AppxBundle=Always `
-            /p:AppxBundlePlatforms=x64 `
-            /p:UapAppxPackageBuildMode=SideloadOnly `
-            /p:AppxPackageSigningEnabled=true `
-            /p:PackageCertificateKeyFile="$PWD\ProjectZero.pfx" `
-            /p:PackageCertificatePassword=$env:SIGN_PW `
-            /p:AppxPackageDir="$PWD\AppPackages" `
-            /v:normal *>&1 | Tee-Object -FilePath build.log
+          & $env:MSBUILD ProjectZero.csproj /p:Configuration=Release /p:Platform=x64 /p:AppxBundle=Always /p:AppxBundlePlatforms=x64 /p:UapAppxPackageBuildMode=SideloadOnly /p:AppxPackageSigningEnabled=true /p:PackageCertificateKeyFile="$PWD\ProjectZero.pfx" /p:PackageCertificatePassword=$env:SIGN_PW /p:AppxPackageDir="$PWD\AppPackages" /v:normal *>&1 | Tee-Object -FilePath build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Collect Xbox deployment dependencies
+      - name: Create clean Xbox x64 install folder
         shell: pwsh
         run: |
-          $dep = Join-Path $PWD 'XboxDependencies'
-          New-Item -ItemType Directory -Force -Path $dep | Out-Null
+          $out = Join-Path $PWD 'XboxInstall'
+          $deps = Join-Path $out 'Dependencies'
+          Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $deps | Out-Null
 
-          # First copy the framework packages Visual Studio generated for this exact app.
-          $generated = Get-ChildItem -Path (Join-Path $PWD 'AppPackages') -Recurse -File -Filter '*.appx' -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notlike 'ProjectZero*' }
-          foreach ($file in $generated) {
-            Copy-Item $file.FullName (Join-Path $dep $file.Name) -Force
-            Write-Host "Collected generated dependency $($file.Name)"
-          }
+          $bundle = Get-ChildItem (Join-Path $PWD 'AppPackages') -Recurse -File -Filter '*.msixbundle' | Select-Object -First 1
+          if (-not $bundle) { throw 'MSIX bundle not found' }
+          Copy-Item $bundle.FullName (Join-Path $out $bundle.Name)
+          Copy-Item "$PWD\ProjectZero.cer" (Join-Path $out 'ProjectZero.cer')
 
-          # Fall back to installed SDK/NuGet locations for anything not emitted beside the package.
-          $patterns = @(
+          $testDir = $bundle.Directory.FullName
+          $x64Dir = Join-Path $testDir 'Dependencies\x64'
+          if (-not (Test-Path $x64Dir)) { throw "x64 dependency directory not found: $x64Dir" }
+
+          $required = @(
             'Microsoft.NET.CoreFramework.Debug.2.2.appx',
-            'Microsoft.NET.CoreFramework.2.2.appx',
             'Microsoft.NET.CoreRuntime.2.2.appx',
-            'Microsoft.NET.Native.Framework.2.2.appx',
-            'Microsoft.NET.Native.Runtime.2.2.appx',
-            'Microsoft.VCLibs.x64*.appx'
+            'Microsoft.VCLibs.x64.14.00.appx'
           )
-          $roots = @(
-            "$env:ProgramFiles\dotnet",
-            "${env:ProgramFiles(x86)}\Microsoft SDKs\UWPNuGetPackages",
-            "${env:ProgramFiles(x86)}\Microsoft Visual Studio",
-            "$env:USERPROFILE\.nuget\packages"
-          ) | Where-Object { Test-Path $_ }
-
-          foreach ($pattern in $patterns) {
-            $already = Get-ChildItem $dep -File -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($already) { continue }
-            $candidates = @()
-            foreach ($root in $roots) {
-              $candidates += @(Get-ChildItem $root -Recurse -File -Filter $pattern -ErrorAction SilentlyContinue)
-            }
-            $match = $candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if ($match) {
-              Copy-Item $match.FullName (Join-Path $dep $match.Name) -Force
-              Write-Host "Collected $($match.Name) from $($match.FullName)"
-            } else {
-              Write-Warning "Dependency not found on runner: $pattern"
-            }
+          foreach ($name in $required) {
+            $src = Join-Path $x64Dir $name
+            if (-not (Test-Path $src)) { throw "Required x64 dependency missing: $name" }
+            Copy-Item $src (Join-Path $deps $name)
           }
-          Get-ChildItem $dep -File | ForEach-Object { Write-Host "Xbox dependency: $($_.Name) $($_.Length) bytes" }
 
-      - name: Copy certificate beside the bundle
-        shell: pwsh
-        run: |
-          Get-ChildItem -Recurse AppPackages -Include *.msixbundle,*.appxbundle,*.msix,*.appx |
-            ForEach-Object { Copy-Item "$PWD\ProjectZero.ci.cer" (Join-Path $_.DirectoryName 'ProjectZero.cer') -Force }
+          @"
+          PROJECT ZERO - XBOX DEV MODE INSTALL
 
-      - name: Upload artifacts
+          Package:
+          $($bundle.Name)
+
+          Dependencies (upload ALL 3):
+          Microsoft.NET.CoreFramework.Debug.2.2.appx
+          Microsoft.NET.CoreRuntime.2.2.appx
+          Microsoft.VCLibs.x64.14.00.appx
+
+          Do not upload ARM, ARM64 or x86 dependencies.
+          Do not put ProjectZero.cer in the Dependencies box.
+          "@ | Set-Content (Join-Path $out 'INSTALL.txt')
+
+          Write-Host 'Final Xbox install files:'
+          Get-ChildItem $out -Recurse -File | ForEach-Object { Write-Host $_.FullName }
+
+      - name: Upload clean Xbox package
         uses: actions/upload-artifact@v4
         with:
-          name: ProjectZero-Xbox-Test
-          path: |
-            launcher/ProjectZero/build.log
-            launcher/ProjectZero/AppPackages/**/*.msix
-            launcher/ProjectZero/AppPackages/**/*.msixbundle
-            launcher/ProjectZero/AppPackages/**/*.appx
-            launcher/ProjectZero/AppPackages/**/*.appxbundle
-            launcher/ProjectZero/AppPackages/**/*.cer
-            launcher/ProjectZero/XboxDependencies/*.appx
+          name: ProjectZero-Xbox-x64
+          path: launcher/ProjectZero/XboxInstall/**
           if-no-files-found: error
