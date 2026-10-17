@@ -1,6 +1,6 @@
-import { head } from '@vercel/blob';
 import { handleUpload } from '@vercel/blob/client';
 import { contentRequestAuthorized } from '../../../../lib/content-upload-auth';
+import { blobExists } from '../../../../lib/blob-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,16 +17,6 @@ function cleanRelativePath(value) {
   return parts.join('/');
 }
 
-async function exists(pathname) {
-  try {
-    const metadata = await head(pathname);
-    return metadata || true;
-  } catch (error) {
-    if (error?.name === 'BlobNotFoundError' || error?.status === 404 || error?.statusCode === 404) return false;
-    throw error;
-  }
-}
-
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -41,15 +31,11 @@ export async function POST(request) {
           throw new Error('Invalid upload metadata');
         }
 
-        // The normal flow establishes an HttpOnly content session during the status check that
-        // happens before every upload. Keep the supplied key as a compatibility fallback, but do
-        // not require it on every multipart token request: that caused long uploads to fail after
-        // already processing many files.
         if (!contentRequestAuthorized(request, payload.key)) {
           throw new Error('Content upload session expired. Refresh the page and start Resume upload again.');
         }
 
-        if (await exists(FINAL_MANIFEST)) {
+        if (await blobExists(FINAL_MANIFEST)) {
           throw new Error('Season 7 content is finalized and locked. No more files can be added or changed.');
         }
 
