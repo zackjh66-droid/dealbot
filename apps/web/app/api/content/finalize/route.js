@@ -1,17 +1,11 @@
-import { timingSafeEqual } from 'node:crypto';
 import { head, put } from '@vercel/blob';
+import { contentRequestAuthorized, contentResponseHeaders } from '../../../../lib/content-upload-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PREFIX = 'season7/7.00/4629139/';
 const FINAL_MANIFEST = PREFIX + '.projectzero-manifest.json';
-
-function sameSecret(a, b) {
-  const left = Buffer.from(String(a || ''));
-  const right = Buffer.from(String(b || ''));
-  return left.length > 0 && left.length === right.length && timingSafeEqual(left, right);
-}
 
 function cleanRelativePath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -35,14 +29,17 @@ async function manifestAlreadyExists() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    if (!sameSecret(body?.key, process.env.PZ_CONTENT_UPLOAD_KEY)) {
-      return Response.json({ error: 'Invalid content upload key' }, { status: 401 });
+    if (!contentRequestAuthorized(request, body?.key)) {
+      return Response.json(
+        { error: 'Content upload session expired. Refresh the page and Resume upload again.' },
+        { status: 401, headers: contentResponseHeaders() }
+      );
     }
 
     if (await manifestAlreadyExists()) {
       return Response.json(
         { error: 'Season 7 content has already been finalized and is locked.' },
-        { status: 409 }
+        { status: 409, headers: contentResponseHeaders() }
       );
     }
 
@@ -102,11 +99,12 @@ export async function POST(request) {
       cl: manifest.cl,
       fileCount: manifest.fileCount,
       totalSize: manifest.totalSize
-    }, { headers: { 'Cache-Control': 'no-store' } });
+    }, { headers: contentResponseHeaders() });
   } catch (error) {
+    console.error('content finalization failed', error);
     return Response.json(
       { error: error?.message || 'Could not finalize content' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      { status: 400, headers: contentResponseHeaders() }
     );
   }
 }
