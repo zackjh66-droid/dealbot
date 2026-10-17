@@ -8,13 +8,14 @@ import { upload } from '@vercel/blob/client';
 const PREFIX = 'season7/7.00/4629139/';
 const HASH_CHUNK = 16 * 1024 * 1024;
 const ARCHIVE_PART_SIZE = 64 * 1024 * 1024;
+const ARCHIVE_CONCURRENCY = 3;
+const FAST_HASH_LIMIT = 128 * 1024 * 1024;
 const UPLOAD_ATTEMPTS = 4;
 
 function normalizeRelativePath(value) {
   const raw = String(value || '').replace(/\\/g, '/');
   const parts = raw.split('/').filter(Boolean);
   if (!parts.length) return '';
-
   const gameRoot = parts.findIndex((part) => part === 'Engine' || part === 'FortniteGame');
   if (gameRoot >= 0) return parts.slice(gameRoot).join('/');
   return parts.length > 1 ? parts.slice(1).join('/') : parts[0];
@@ -53,6 +54,10 @@ function isLocalFileError(error) {
     || message.includes('file or directory could not be found');
 }
 
+function arrayBufferToHex(buffer) {
+  return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 async function ensureReadPermission(handle) {
   if (!handle) return;
   try {
@@ -74,7 +79,6 @@ async function scanDirectory(handle, prefix = '', output = []) {
       await scanDirectory(child, path, output);
       continue;
     }
-
     const file = await child.getFile();
     const relativePath = normalizeRelativePath(path);
     if (!relativePath) continue;
@@ -100,9 +104,7 @@ function legacyEntries(fileList) {
 }
 
 function archiveEntry(file, handle = null) {
-  if (!file || !/\.rar$/i.test(file.name || '')) {
-    throw new Error('Choose the Fortnite 7.00 .rar archive.');
-  }
+  if (!file || !/\.rar$/i.test(file.name || '')) throw new Error('Choose the Fortnite 7.00 .rar archive.');
   return {
     relativePath: `.source/${safeArchiveName(file.name)}`,
     size: file.size,
@@ -128,9 +130,7 @@ async function materializeEntry(entry) {
   if (entry.handle) {
     await ensureReadPermission(entry.handle);
     const file = await entry.handle.getFile();
-    if (file.size !== entry.size) {
-      throw new Error('Local file size changed after it was selected. Re-select it before continuing.');
-    }
+    if (file.size !== entry.size) throw new Error('Local file size changed after it was selected. Re-select it before continuing.');
     return file;
   }
   if (entry.legacyFile) return entry.legacyFile;
@@ -177,6 +177,18 @@ async function hashBlob(blob, onProgress) {
   return bytesToHex(hash.digest());
 }
 
+async function fastHashBlob(blob, onProgress) {
+  if (globalThis.crypto?.subtle && blob.size <= FAST_HASH_LIMIT) {
+    onProgress?.(5);
+    const bytes = await blob.arrayBuffer();
+    onProgress?.(60);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+    onProgress?.(100);
+    return arrayBufferToHex(digest);
+  }
+  return hashBlob(blob, onProgress);
+}
+
 async function hashEntry(entry, onProgress) {
   let lastError;
   for (let attempt = 0; attempt < (entry.handle ? 2 : 1); attempt += 1) {
@@ -197,17 +209,9 @@ async function getRemoteStatus(key, path, size) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, path, size })
   });
-
   let body = {};
-  try {
-    body = await response.json();
-  } catch {
-    // Keep the HTTP status below as the useful error if the body is not JSON.
-  }
-
-  if (!response.ok) {
-    throw new Error(body?.error || `Content status HTTP ${response.status}`);
-  }
+  try { body = await response.json(); } catch { /* HTTP status is enough */ }
+  if (!response.ok) throw new Error(body?.error || `Content status HTTP ${response.status}`);
   return body;
 }
 
@@ -262,9 +266,7 @@ export default function ContentAdminPage() {
 
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const archiveMode = selectionMode.startsWith('ARCHIVE');
-  const workTotal = archiveMode && files[0]
-    ? Math.ceil(files[0].size / ARCHIVE_PART_SIZE)
-    : files.length;
+  const workTotal = archiveMode && files[0] ? Math.ceil(files[0].size / ARCHIVE_PART_SIZE) : files.length;
 
   function resetSelection(selected, mode) {
     setFiles(selected.sort((a, b) => a.relativePath.localeCompare(b.relativePath)));
@@ -297,20 +299,17 @@ export default function ContentAdminPage() {
 
   async function choosePersistentFolder() {
     if (running || locked) return;
-
     if (typeof window === 'undefined' || typeof window.showDirectoryPicker !== 'function') {
       folderInputRef.current?.click();
       return;
     }
-
     try {
       setPhase('SCANNING');
       setCurrent('Choose the extracted Fortnite 7.00 folder');
       setCurrentPct(0);
       const directory = await window.showDirectoryPicker({ mode: 'read' });
       await ensureReadPermission(directory);
-      const selected = await scanDirectory(directory);
-      resetSelection(selected, 'PERSISTENT');
+      resetSelection(await scanDirectory(directory), 'PERSISTENT');
     } catch (error) {
       if (error?.name === 'AbortError') {
         setPhase('IDLE');
@@ -324,12 +323,10 @@ export default function ContentAdminPage() {
 
   async function chooseArchive() {
     if (running || locked) return;
-
     if (typeof window === 'undefined' || typeof window.showOpenFilePicker !== 'function') {
       archiveInputRef.current?.click();
       return;
     }
-
     try {
       setPhase('SELECTING ARCHIVE');
       setCurrent('Choose the Fortnite 7.00 .rar file');
@@ -345,8 +342,7 @@ export default function ContentAdminPage() {
         }]
       });
       await ensureReadPermission(handle);
-      const file = await handle.getFile();
-      resetSelection([archiveEntry(file, handle)], 'ARCHIVE PERSISTENT');
+      resetSelection([archiveEntry(await handle.getFile(), handle)], 'ARCHIVE PERSISTENT');
     } catch (error) {
       if (error?.name === 'AbortError') {
         setPhase('IDLE');
@@ -361,19 +357,31 @@ export default function ContentAdminPage() {
   async function startArchiveUpload(uploadKey) {
     const entry = files[0];
     const partCount = Math.ceil(entry.size / ARCHIVE_PART_SIZE);
-    const parts = [];
+    const parts = new Array(partCount);
+    const partProgress = new Array(partCount).fill(0);
+    let progressTotal = 0;
     let done = 0;
     let reused = 0;
+    let nextIndex = 0;
+    let firstError = null;
 
-    for (let index = 0; index < partCount; index += 1) {
+    const updatePartProgress = (index, fraction) => {
+      const next = Math.max(partProgress[index], Math.min(1, Math.max(0, fraction)));
+      progressTotal += next - partProgress[index];
+      partProgress[index] = next;
+      setCurrentPct((progressTotal / partCount) * 100);
+    };
+
+    async function processPart(index) {
       const start = index * ARCHIVE_PART_SIZE;
       const end = Math.min(entry.size, start + ARCHIVE_PART_SIZE);
       const partSize = end - start;
       const relativePath = archivePartPath(entry, index);
       const pathname = PREFIX + relativePath;
-      setCurrent(`RAR part ${index + 1} / ${partCount} · ${formatBytes(start)}–${formatBytes(end)}`);
-      setPhase('CHECKING PART');
-      setCurrentPct((index / partCount) * 100);
+
+      setCurrent(`RAR part ${index + 1} / ${partCount} · ${ARCHIVE_CONCURRENCY} parallel lanes`);
+      setPhase('FAST CHECKING');
+      updatePartProgress(index, 0.01);
 
       const existing = await getRemoteStatus(uploadKey, relativePath, partSize);
       if (existing.locked) {
@@ -382,23 +390,23 @@ export default function ContentAdminPage() {
       }
 
       if (existing.exists && existing.sizeMatches) {
-        parts.push({ path: relativePath, size: partSize });
+        parts[index] = { path: relativePath, size: partSize };
         done += 1;
         reused += 1;
         setCompleted(done);
         setResumed(reused);
-        setCurrentPct((done / partCount) * 100);
-        continue;
+        updatePartProgress(index, 1);
+        return;
       }
 
-      setPhase('HASHING PART');
+      setPhase('FAST HASHING');
       const file = await materializeEntry(entry);
       const localPart = file.slice(start, end, 'application/octet-stream');
-      const digest = await hashBlob(localPart, (percentage) => {
-        setCurrentPct(((index + (percentage / 100)) / partCount) * 100);
+      const digest = await fastHashBlob(localPart, (percentage) => {
+        updatePartProgress(index, 0.02 + (Number(percentage || 0) / 100) * 0.08);
       });
 
-      setPhase('UPLOADING PART');
+      setPhase(`UPLOADING ${ARCHIVE_CONCURRENCY} PARTS`);
       await uploadArchivePartWithRetry(
         pathname,
         entry,
@@ -415,38 +423,54 @@ export default function ContentAdminPage() {
             sha256: digest
           }),
           onUploadProgress: ({ percentage }) => {
-            setCurrentPct(((index + (Number(percentage || 0) / 100)) / partCount) * 100);
+            updatePartProgress(index, 0.1 + (Number(percentage || 0) / 100) * 0.85);
           }
         },
         (attempt) => setPhase(`RETRY PART ${attempt}/${UPLOAD_ATTEMPTS - 1}`)
       );
 
-      setPhase('VERIFYING PART');
+      setPhase('VERIFYING PARTS');
       const verified = await getRemoteStatus(uploadKey, relativePath, partSize);
-      if (!verified.exists || !verified.sizeMatches) {
-        throw new Error(`RAR part ${index + 1} could not be verified in private storage.`);
-      }
+      if (!verified.exists || !verified.sizeMatches) throw new Error(`RAR part ${index + 1} could not be verified in private storage.`);
 
-      parts.push({ path: relativePath, size: partSize });
+      parts[index] = { path: relativePath, size: partSize };
       done += 1;
       setCompleted(done);
-      setCurrentPct((done / partCount) * 100);
+      updatePartProgress(index, 1);
     }
+
+    async function worker() {
+      while (!firstError) {
+        const index = nextIndex;
+        nextIndex += 1;
+        if (index >= partCount) return;
+        try {
+          await processPart(index);
+        } catch (error) {
+          firstError = firstError || error;
+          return;
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(ARCHIVE_CONCURRENCY, partCount) }, () => worker()));
+    if (firstError) throw firstError;
 
     setPhase('WRITING ARCHIVE MAP');
     setCurrent('Saving resumable RAR parts manifest');
     const partsManifest = {
-      schema: 1,
+      schema: 2,
       build: '7.00',
       cl: '4629139',
       archiveName: entry.relativePath.split('/').pop(),
       archiveSize: entry.size,
       partSize: ARCHIVE_PART_SIZE,
       partCount,
+      concurrency: ARCHIVE_CONCURRENCY,
       parts
     };
     const manifestBlob = new Blob([JSON.stringify(partsManifest)], { type: 'application/json' });
-    const manifestDigest = await hashBlob(manifestBlob);
+    const manifestDigest = await fastHashBlob(manifestBlob);
     const manifestRelativePath = archivePartsManifestPath(entry);
     const manifestStatus = await getRemoteStatus(uploadKey, manifestRelativePath, manifestBlob.size);
     if (!(manifestStatus.exists && manifestStatus.sizeMatches)) {
@@ -478,7 +502,6 @@ export default function ContentAdminPage() {
       const relativePath = entry.relativePath;
       const pathname = PREFIX + relativePath;
       setCurrent(relativePath);
-
       try {
         setPhase('CHECKING');
         setCurrentPct(0);
@@ -489,9 +512,7 @@ export default function ContentAdminPage() {
         }
 
         setPhase(existing.exists && existing.sizeMatches ? 'HASHING RECOVERED FILE' : 'HASHING');
-        setCurrentPct(0);
         const digest = await hashEntry(entry, setCurrentPct);
-
         if (existing.exists && existing.sizeMatches) {
           manifestFiles.push({ path: relativePath, size: entry.size, sha256: digest });
           done += 1;
@@ -511,15 +532,8 @@ export default function ContentAdminPage() {
               access: 'private',
               handleUploadUrl: '/api/content/upload',
               multipart: true,
-              clientPayload: JSON.stringify({
-                key: uploadKey,
-                relativePath,
-                size: entry.size,
-                sha256: digest
-              }),
-              onUploadProgress: ({ percentage }) => {
-                setCurrentPct(Math.max(0, Math.min(100, Number(percentage || 0))));
-              }
+              clientPayload: JSON.stringify({ key: uploadKey, relativePath, size: entry.size, sha256: digest }),
+              onUploadProgress: ({ percentage }) => setCurrentPct(Math.max(0, Math.min(100, Number(percentage || 0))))
             },
             (attempt) => setPhase(`RETRY ${attempt}/${UPLOAD_ATTEMPTS - 1}`)
           );
@@ -533,10 +547,7 @@ export default function ContentAdminPage() {
         setPhase('VERIFYING');
         setCurrentPct(100);
         const verified = await getRemoteStatus(uploadKey, relativePath, entry.size);
-        if (!verified.exists || !verified.sizeMatches) {
-          throw new Error('Uploaded file could not be verified in private storage.');
-        }
-
+        if (!verified.exists || !verified.sizeMatches) throw new Error('Uploaded file could not be verified in private storage.');
         manifestFiles.push({ path: relativePath, size: entry.size, sha256: digest });
         done += 1;
         setCompleted(done);
@@ -568,18 +579,14 @@ export default function ContentAdminPage() {
     setCompleted(0);
     setResumed(0);
     setFailed([]);
-
     try {
-      if (archiveMode) {
-        await startArchiveUpload(uploadKey);
-      } else {
-        await startFolderUpload(uploadKey);
-      }
+      if (archiveMode) await startArchiveUpload(uploadKey);
+      else await startFolderUpload(uploadKey);
     } catch (error) {
       let message = error?.message || 'Upload failed';
       if (isLocalFileError(error)) {
         message = archiveMode
-          ? 'ChromeOS lost access to the local RAR. Re-select the SAME .rar and press Resume upload. Finished 64 MB parts stay stored and will be skipped, so it resumes instead of restarting from zero.'
+          ? 'ChromeOS lost access to the local RAR. Re-select the SAME .rar and press Resume upload. Finished 64 MB parts stay stored and will be skipped.'
           : 'ChromeOS lost access to a local game file. Move the extracted folder to local Downloads/My files, re-select it, then resume.';
       } else if (message.includes('Failed to retrieve the client token')) {
         message = 'Upload token failed after automatic retries. Press Resume upload; files already stored will be detected and skipped.';
@@ -598,8 +605,8 @@ export default function ContentAdminPage() {
         <span className="eyebrow">Project Zero · private content</span>
         <h1>Season 7 Content Manager</h1>
         <p>
-          Upload the extracted Fortnite 7.00 folder or the original .rar archive. RAR mode now stores the archive as
-          resumable 64 MB parts, so a ChromeOS file-handle failure does not throw away an hour of progress.
+          Upload the extracted Fortnite 7.00 folder or the original .rar archive. RAR mode uses resumable 64 MB parts,
+          native browser SHA-256 and three parallel upload lanes for better throughput without losing completed progress.
         </p>
       </div>
 
@@ -616,48 +623,14 @@ export default function ContentAdminPage() {
           disabled={running || locked}
         />
 
-        <input
-          ref={folderInputRef}
-          type="file"
-          multiple
-          webkitdirectory=""
-          directory=""
-          onChange={chooseLegacyFiles}
-          disabled={running || locked}
-          style={{ display: 'none' }}
-        />
-
-        <input
-          ref={archiveInputRef}
-          type="file"
-          accept=".rar,application/vnd.rar,application/x-rar-compressed"
-          onChange={chooseLegacyArchive}
-          disabled={running || locked}
-          style={{ display: 'none' }}
-        />
+        <input ref={folderInputRef} type="file" multiple webkitdirectory="" directory="" onChange={chooseLegacyFiles} disabled={running || locked} style={{ display: 'none' }} />
+        <input ref={archiveInputRef} type="file" accept=".rar,application/vnd.rar,application/x-rar-compressed" onChange={chooseLegacyArchive} disabled={running || locked} style={{ display: 'none' }} />
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost" type="button" onClick={choosePersistentFolder} disabled={running || locked}>
-            Select extracted folder
-          </button>
-          <button className="btn btn-ghost" type="button" onClick={chooseArchive} disabled={running || locked}>
-            Select .RAR archive
-          </button>
-          <button
-            className="btn btn-primary"
-            type="button"
-            onClick={startUpload}
-            disabled={running || locked || !files.length || !key.trim()}
-          >
-            {locked
-              ? 'Build locked'
-              : running
-                ? `${phase}…`
-                : failed.length
-                  ? 'Resume upload'
-                  : archiveMode
-                    ? 'Upload RAR archive'
-                    : 'Hash, upload and lock build'}
+          <button className="btn btn-ghost" type="button" onClick={choosePersistentFolder} disabled={running || locked}>Select extracted folder</button>
+          <button className="btn btn-ghost" type="button" onClick={chooseArchive} disabled={running || locked}>Select .RAR archive</button>
+          <button className="btn btn-primary" type="button" onClick={startUpload} disabled={running || locked || !files.length || !key.trim()}>
+            {locked ? 'Build locked' : running ? `${phase}…` : failed.length ? 'Resume upload' : archiveMode ? 'Upload RAR archive' : 'Hash, upload and lock build'}
           </button>
         </div>
 
@@ -667,6 +640,7 @@ export default function ContentAdminPage() {
         <div className="kv"><span>Selection</span><b>{selectionMode}</b></div>
         <div className="kv"><span>Ready this run</span><b>{completed} / {workTotal}</b></div>
         <div className="kv"><span>Recovered from storage</span><b>{resumed}</b></div>
+        {archiveMode ? <div className="kv"><span>Upload lanes</span><b>{ARCHIVE_CONCURRENCY} parallel</b></div> : null}
         <div className="kv"><span>State</span><b>{phase}</b></div>
 
         {current ? (
@@ -680,37 +654,27 @@ export default function ContentAdminPage() {
         ) : null}
 
         {selectionMode === 'LEGACY' ? (
-          <div className="alert" style={{ marginTop: 22 }}>
-            This browser fell back to legacy folder selection. For the largest files, current Chrome/ChromeOS with persistent file handles is recommended.
-          </div>
+          <div className="alert" style={{ marginTop: 22 }}>This browser fell back to legacy folder selection. For the largest files, current Chrome/ChromeOS with persistent file handles is recommended.</div>
         ) : null}
 
         {archiveMode ? (
           <div className="alert" style={{ marginTop: 22 }}>
-            <b>Resumable RAR mode.</b> The archive is split into independent 64 MB private Blob objects. If ChromeOS loses the file handle, re-select the same RAR and Resume upload; completed parts are checked and skipped. The archive will be reconstructed in the cloud before Xbox content extraction.
+            <b>Fast resumable RAR mode.</b> Three 64 MB parts can upload at the same time. Completed parts stay in private Blob storage, so re-selecting the same RAR resumes instead of restarting. Actual speed is still capped by your Chromebook and internet upload bandwidth.
           </div>
         ) : null}
 
-        {locked ? (
-          <div className="alert" style={{ marginTop: 22 }}>
-            <b>Season 7 v7.00 is finalized.</b> Xbox clients can now request the signed multi-file manifest.
-          </div>
-        ) : null}
+        {locked ? <div className="alert" style={{ marginTop: 22 }}><b>Season 7 v7.00 is finalized.</b> Xbox clients can now request the signed multi-file manifest.</div> : null}
 
         {failed.length ? (
           <div className="alert" style={{ marginTop: 22 }}>
             <b>Upload stopped.</b>
             {failed.slice(0, 8).map((item) => (
-              <div key={item.path} className="mono" style={{ marginTop: 6, overflowWrap: 'anywhere' }}>
-                {item.path} — {item.error}
-              </div>
+              <div key={item.path} className="mono" style={{ marginTop: 6, overflowWrap: 'anywhere' }}>{item.path} — {item.error}</div>
             ))}
           </div>
         ) : null}
 
-        <p className="note" style={{ marginTop: 22 }}>
-          Existing completed files or RAR parts are reused from private storage. Only upload files you are authorized to store.
-        </p>
+        <p className="note" style={{ marginTop: 22 }}>Existing completed files or RAR parts are reused from private storage. Only upload files you are authorized to store.</p>
       </div>
     </div>
   );
