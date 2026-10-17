@@ -27,7 +27,8 @@
     <AppxPackageDir>$(ProjectDir)AppPackages\</AppxPackageDir>
     <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
     <LangVersion>7.3</LangVersion>
-    <RuntimeIdentifiers>win10;win10-x64;win10-x64-aot</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win10-x64;win10-x64-aot</RuntimeIdentifiers>
+    <NuGetRuntimeIdentifier>win10-x64</NuGetRuntimeIdentifier>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebugSymbols>true</DebugSymbols>

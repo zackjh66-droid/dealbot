@@ -62,6 +62,18 @@ jobs:
         run: |
           & $env:MSBUILD ProjectZero.csproj /t:Restore /p:Configuration=Release /p:Platform=x64 /v:minimal
 
+      - name: Inspect NuGet assets
+        shell: pwsh
+        run: |
+          $path = Join-Path $PWD 'obj/project.assets.json'
+          if (Test-Path $path) {
+            $assets = Get-Content $path -Raw | ConvertFrom-Json
+            $targets = ($assets.targets.PSObject.Properties.Name -join ' | ')
+            Write-Host "::warning::assets targets: $targets"
+          } else {
+            Write-Host "::warning::no project.assets.json"
+          }
+
       - name: Build and sign bundle
         id: build
         continue-on-error: true
