@@ -10,8 +10,6 @@ namespace ProjectZero.Services
 {
     public static class ContentStore
     {
-        private const string FolderName = "GameContent";
-
         public static async Task<bool> IsInstalledAsync(ContentManifest manifest)
         {
             if (manifest == null || string.IsNullOrWhiteSpace(manifest.FileName))
@@ -38,7 +36,7 @@ namespace ProjectZero.Services
 
             try
             {
-                var folder = await ApplicationData.Current.LocalFolder.GetFolderAsync(FolderName);
+                var folder = ApplicationData.Current.GetPublisherCacheFolder(ContentDownloader.SharedFolderName);
                 var file = await folder.GetFileAsync(manifest.FileName);
                 var props = await file.GetBasicPropertiesAsync();
                 return manifest.Size == 0 || props.Size == manifest.Size;
