@@ -1,0 +1,46 @@
+using System.Collections.Generic;
+
+namespace ProjectZero.Models
+{
+    public class LinkStartResult
+    {
+        public string Code { get; set; }
+        public string PollToken { get; set; }
+        public string LinkUrl { get; set; }
+        public string ExpiresAt { get; set; }
+    }
+
+    public class AccountInfo
+    {
+        public string Id { get; set; }
+        public string Username { get; set; }
+        public long AccountNo { get; set; }
+    }
+
+    public class BuildInfo
+    {
+        public int Season { get; set; }
+        public string Channel { get; set; }
+        public string Version { get; set; }
+        public string Cl { get; set; }
+        public string BuildLabel { get; set; }
+        public string LaunchUri { get; set; }
+        public string PackageFamilyName { get; set; }
+    }
+
+    public class LinkPollResult
+    {
+        public string Status { get; set; }
+        public AccountInfo Account { get; set; }
+        public string SessionToken { get; set; }
+        public List<BuildInfo> Builds { get; set; }
+    }
+
+    public class TicketResult
+    {
+        public string Ticket { get; set; }
+        public string ExpiresAt { get; set; }
+        public AccountInfo Account { get; set; }
+        public BuildInfo Build { get; set; }
+    }
+}

@@ -1,0 +1,33 @@
+node_modules/
+.next/
+out/
+.vercel/
+*.log
+
+# local env
+.env
+.env.local
+.env.*.local
+apps/web/.env
+apps/web/.env.local
+
+# .NET / UWP build output
+bin/
+obj/
+AppPackages/
+*.appx
+*.appxbundle
+*.appxupload
+*.msix
+*.msixbundle
+launcher/**/bin/
+launcher/**/obj/
+launcher/**/AppPackages/
+
+# signing material
+*.pfx
+*.snk
+
+# OS noise
+.DS_Store
+Thumbs.db
