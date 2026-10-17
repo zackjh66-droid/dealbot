@@ -1,18 +1,12 @@
-import { timingSafeEqual } from 'node:crypto';
 import { head } from '@vercel/blob';
 import { handleUpload } from '@vercel/blob/client';
+import { contentRequestAuthorized } from '../../../../lib/content-upload-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PREFIX = 'season7/7.00/4629139/';
 const FINAL_MANIFEST = PREFIX + '.projectzero-manifest.json';
-
-function sameSecret(a, b) {
-  const left = Buffer.from(String(a || ''));
-  const right = Buffer.from(String(b || ''));
-  return left.length > 0 && left.length === right.length && timingSafeEqual(left, right);
-}
 
 function cleanRelativePath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -47,8 +41,12 @@ export async function POST(request) {
           throw new Error('Invalid upload metadata');
         }
 
-        if (!sameSecret(payload.key, process.env.PZ_CONTENT_UPLOAD_KEY)) {
-          throw new Error('Invalid content upload key');
+        // The normal flow establishes an HttpOnly content session during the status check that
+        // happens before every upload. Keep the supplied key as a compatibility fallback, but do
+        // not require it on every multipart token request: that caused long uploads to fail after
+        // already processing many files.
+        if (!contentRequestAuthorized(request, payload.key)) {
+          throw new Error('Content upload session expired. Refresh the page and start Resume upload again.');
         }
 
         if (await exists(FINAL_MANIFEST)) {
@@ -67,8 +65,6 @@ export async function POST(request) {
           throw new Error('Invalid file size or SHA-256');
         }
 
-        // Files are mutable only while a build is still being assembled. This makes interrupted
-        // browser uploads retryable. The final manifest above permanently locks the build.
         return {
           addRandomSuffix: false,
           allowOverwrite: true,
