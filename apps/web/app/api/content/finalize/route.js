@@ -1,11 +1,14 @@
-import { head, put } from '@vercel/blob';
+import { put } from '@vercel/blob';
 import { contentRequestAuthorized, contentResponseHeaders } from '../../../../lib/content-upload-auth';
+import { blobExists, headOrNull } from '../../../../lib/blob-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PREFIX = 'season7/7.00/4629139/';
 const FINAL_MANIFEST = PREFIX + '.projectzero-manifest.json';
+const MAX_FILES = 20000;
+const VERIFY_CONCURRENCY = 16;
 
 function cleanRelativePath(value) {
   const path = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -16,14 +19,35 @@ function cleanRelativePath(value) {
   return parts.join('/');
 }
 
-async function manifestAlreadyExists() {
-  try {
-    await head(FINAL_MANIFEST);
-    return true;
-  } catch (error) {
-    if (error?.name === 'BlobNotFoundError' || error?.status === 404 || error?.statusCode === 404) return false;
-    throw error;
+async function verifyUploadedFiles(files) {
+  const verified = new Array(files.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= files.length) return;
+
+      const entry = files[index];
+      const blob = await headOrNull(PREFIX + entry.path);
+      if (!blob) {
+        throw new Error('Uploaded file is missing: ' + entry.path);
+      }
+      if (Number(blob.size ?? -1) !== entry.size) {
+        throw new Error('Uploaded file has the wrong size: ' + entry.path);
+      }
+
+      verified[index] = { ...entry, etag: blob.etag || '' };
+    }
   }
+
+  const workers = Array.from(
+    { length: Math.min(VERIFY_CONCURRENCY, files.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return verified;
 }
 
 export async function POST(request) {
@@ -36,7 +60,7 @@ export async function POST(request) {
       );
     }
 
-    if (await manifestAlreadyExists()) {
+    if (await blobExists(FINAL_MANIFEST)) {
       return Response.json(
         { error: 'Season 7 content has already been finalized and is locked.' },
         { status: 409, headers: contentResponseHeaders() }
@@ -44,20 +68,21 @@ export async function POST(request) {
     }
 
     const incoming = Array.isArray(body?.files) ? body.files : [];
-    if (!incoming.length || incoming.length > 20000) {
+    if (!incoming.length || incoming.length > MAX_FILES) {
       throw new Error('Invalid file list');
     }
 
     const seen = new Set();
-    const files = [];
+    const normalized = [];
     let totalSize = 0;
 
     for (const entry of incoming) {
       const path = cleanRelativePath(entry?.path);
-      if (path.startsWith('.projectzero-') || seen.has(path.toLowerCase())) {
+      const lowerPath = path.toLowerCase();
+      if (path.startsWith('.projectzero-') || seen.has(lowerPath)) {
         throw new Error('Duplicate or reserved file path: ' + path);
       }
-      seen.add(path.toLowerCase());
+      seen.add(lowerPath);
 
       const size = Number(entry?.size ?? -1);
       const sha256 = String(entry?.sha256 || '').trim().toLowerCase();
@@ -65,16 +90,16 @@ export async function POST(request) {
         throw new Error('Invalid metadata for ' + path);
       }
 
-      const blob = await head(PREFIX + path);
-      if (!blob || Number(blob.size || 0) !== size) {
-        throw new Error('Uploaded file is missing or has the wrong size: ' + path);
-      }
-
-      files.push({ path, size, sha256, etag: blob.etag || '' });
       totalSize += size;
+      if (!Number.isSafeInteger(totalSize)) {
+        throw new Error('Content size is too large to represent safely');
+      }
+      normalized.push({ path, size, sha256 });
     }
 
+    const files = await verifyUploadedFiles(normalized);
     files.sort((a, b) => a.path.localeCompare(b.path));
+
     const manifest = {
       schema: 2,
       locked: true,
