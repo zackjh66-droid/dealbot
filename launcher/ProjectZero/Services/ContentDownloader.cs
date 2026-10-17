@@ -21,18 +21,21 @@ namespace ProjectZero.Services
 
         public static async Task<StorageFile> DownloadAsync(
             Uri source,
-            string fileName,
+            string relativePath,
             IProgress<DownloadSnapshot> progress,
             CancellationToken cancellationToken)
         {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+            var cleanPath = CleanRelativePath(relativePath);
             var folder = ApplicationData.Current.GetPublisherCacheFolder(SharedFolderName);
+            var file = await GetOrCreateDestinationAsync(folder, cleanPath);
 
             var current = await BackgroundDownloader.GetCurrentDownloadsAsync();
+            var normalizedSuffix = cleanPath.Replace('/', '\\');
             var existing = current.FirstOrDefault(op =>
                 op.ResultFile != null &&
-                string.Equals(op.ResultFile.Name, fileName, StringComparison.OrdinalIgnoreCase) &&
-                op.RequestedUri != null &&
-                string.Equals(op.RequestedUri.AbsoluteUri, source.AbsoluteUri, StringComparison.OrdinalIgnoreCase));
+                !string.IsNullOrWhiteSpace(op.ResultFile.Path) &&
+                op.ResultFile.Path.EndsWith(normalizedSuffix, StringComparison.OrdinalIgnoreCase));
 
             var handler = new Progress<DownloadOperation>(op =>
             {
@@ -50,16 +53,68 @@ namespace ProjectZero.Services
 
             if (existing != null)
             {
-                await existing.AttachAsync().AsTask(cancellationToken, handler);
-                return (StorageFile)existing.ResultFile;
+                try
+                {
+                    await existing.AttachAsync().AsTask(cancellationToken, handler);
+                    return (StorageFile)existing.ResultFile;
+                }
+                catch
+                {
+                    try { existing.Cancel(); } catch { }
+                    // The old signed URL may have expired. Start a fresh operation below using the new URL.
+                    file = await GetOrCreateDestinationAsync(folder, cleanPath, true);
+                }
             }
 
-            var file = await folder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
             var downloader = new BackgroundDownloader();
             downloader.SetRequestHeader("User-Agent", "ProjectZero-Xbox/1.0");
             var operation = downloader.CreateDownload(source, file);
             await operation.StartAsync().AsTask(cancellationToken, handler);
             return file;
+        }
+
+        public static async Task<StorageFile> TryGetFileAsync(string relativePath)
+        {
+            try
+            {
+                var cleanPath = CleanRelativePath(relativePath);
+                var folder = ApplicationData.Current.GetPublisherCacheFolder(SharedFolderName);
+                var parts = cleanPath.Split('/');
+                for (var i = 0; i < parts.Length - 1; i++)
+                {
+                    folder = await folder.GetFolderAsync(parts[i]);
+                }
+                return await folder.GetFileAsync(parts[parts.Length - 1]);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static async Task<StorageFile> GetOrCreateDestinationAsync(StorageFolder root, string relativePath, bool replace = false)
+        {
+            var parts = relativePath.Split('/');
+            var folder = root;
+            for (var i = 0; i < parts.Length - 1; i++)
+            {
+                folder = await folder.CreateFolderAsync(parts[i], CreationCollisionOption.OpenIfExists);
+            }
+
+            return await folder.CreateFileAsync(
+                parts[parts.Length - 1],
+                replace ? CreationCollisionOption.ReplaceExisting : CreationCollisionOption.OpenIfExists);
+        }
+
+        private static string CleanRelativePath(string value)
+        {
+            var path = (value ?? string.Empty).Replace('\\', '/').Trim('/');
+            var parts = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0 || parts.Any(part => part == "." || part == ".." || part.Contains(":")))
+            {
+                throw new ArgumentException("Invalid content path", nameof(value));
+            }
+            return string.Join("/", parts);
         }
     }
 }
