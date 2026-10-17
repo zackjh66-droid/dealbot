@@ -1,0 +1,167 @@
+name: launcher
+
+on:
+  push:
+    branches: ['main', 'arena/**']
+    paths:
+      - 'launcher/**'
+      - 'tools/**'
+      - '.github/workflows/launcher.yml'
+  pull_request:
+    paths:
+      - 'launcher/**'
+      - 'tools/**'
+      - '.github/workflows/launcher.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build-msix:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: launcher/ProjectZero
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Locate MSBuild
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
+          "MSBUILD=$msbuild" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Using $msbuild"
+
+      - name: Generate signing certificate
+        shell: pwsh
+        run: |
+          $pw = [guid]::NewGuid().ToString('N')
+          $secure = ConvertTo-SecureString $pw -AsPlainText -Force
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject 'CN=Project Zero' `
+            -KeyUsage DigitalSignature `
+            -FriendlyName 'Project Zero CI' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+          Export-PfxCertificate -Cert $cert -FilePath "$PWD\ProjectZero.pfx" -Password $secure | Out-Null
+          Export-Certificate -Cert $cert -FilePath "$PWD\ProjectZero.cer" | Out-Null
+          Copy-Item "$PWD\ProjectZero.cer" "$PWD\ProjectZero.ci.cer"
+          "SIGN_PW=$pw" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Certificate $($cert.Thumbprint) generated"
+
+      - name: Restore
+        shell: pwsh
+        run: |
+          & $env:MSBUILD ProjectZero.csproj /t:Restore /p:Configuration=Release /p:Platform=x64 /v:minimal
+
+      - name: Inspect NuGet assets
+        shell: pwsh
+        run: |
+          $path = Join-Path $PWD 'obj/project.assets.json'
+          if (Test-Path $path) {
+            $assets = Get-Content $path -Raw | ConvertFrom-Json
+            $targets = ($assets.targets.PSObject.Properties.Name -join ' | ')
+            Write-Host "::warning::assets targets: $targets"
+          } else {
+            Write-Host "::warning::no project.assets.json"
+          }
+
+      - name: Build and sign bundle
+        id: build
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          & $env:MSBUILD ProjectZero.csproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:AppxBundle=Always `
+            /p:AppxBundlePlatforms=x64 `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:AppxPackageSigningEnabled=true `
+            /p:PackageCertificateKeyFile="$PWD\ProjectZero.pfx" `
+            /p:PackageCertificatePassword=$env:SIGN_PW `
+            /p:AppxPackageDir="$PWD\AppPackages" `
+            /v:normal *>&1 | Tee-Object -FilePath build.log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { Write-Host "MSBuild exit $code"; exit $code }
+
+      - name: Report build failure
+        if: steps.build.outcome == 'failure'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $errors = Select-String -Path build.log -Pattern 'error' | Select-Object -First 12
+          foreach ($e in $errors) { Write-Host "::error file=launcher/ProjectZero/ProjectZero.csproj::$($e.Line.Trim())" }
+          $tail = (Get-Content build.log -Tail 80) -join "`n"
+          $body = "MSBuild failed. Last 80 lines:`n``````n$tail`n``````"
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            $body | gh pr comment ${{ github.event.pull_request.number }} --body-file - --repo ${{ github.repository }}
+          } else {
+            $payload = @{ body = $body } | ConvertTo-Json
+            $payload | gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" --input - --method POST | Out-Null
+          }
+
+      - name: Copy certificate beside the bundle
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse AppPackages -Include *.msixbundle,*.appxbundle,*.msix,*.appx |
+            ForEach-Object { Copy-Item "$PWD\ProjectZero.ci.cer" (Join-Path $_.DirectoryName 'ProjectZero.cer') -Force }
+
+      - name: List bundles
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse AppPackages -File | Select-Object -First 40 | ForEach-Object {
+            Write-Host "::warning::pack: $($_.FullName.Substring($PWD.Path.Length + 1)) $($_.Length)"
+          }
+
+      - name: Publish launcher release
+        if: github.event_name == 'push' && steps.build.outcome == 'success'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $bundle = Get-ChildItem -Recurse AppPackages -Include *.msixbundle,*.appxbundle,*.msix,*.appx |
+            Where-Object { $_.Name -like 'ProjectZero*' } |
+            Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $bundle) { throw 'No package produced' }
+          $cer = Get-ChildItem -Recurse AppPackages -Filter ProjectZero.cer | Select-Object -First 1
+          $runtime = Get-ChildItem -Recurse AppPackages -Filter 'Microsoft.NET.CoreRuntime*.appx' | Select-Object -First 1
+          gh release delete launcher-latest --yes --cleanup-tag 2>$null | Out-Null
+          $notes = @"
+          Automated Dev Mode build of the Project Zero launcher.
+
+          1. Install ProjectZero.cer (Trusted People + Trusted Root).
+          2. If the device does not already have it, install Microsoft.NET.CoreRuntime.*.appx.
+          3. Sideload ProjectZero_1.0.0.0_x64.msixbundle.
+
+          Identity ProjectZero.Launcher, publisher CN=Project Zero, x64, version 1.0.0.0.
+          "@
+          $files = @($bundle.FullName, $cer.FullName)
+          if ($runtime) { $files += $runtime.FullName }
+          gh release create launcher-latest $files `
+            --title 'Project Zero launcher (latest)' `
+            --notes $notes `
+            --prerelease
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectZero-UWP
+          path: |
+            launcher/ProjectZero/build.log
+            launcher/ProjectZero/AppPackages/**/*.msix
+            launcher/ProjectZero/AppPackages/**/*.msixbundle
+            launcher/ProjectZero/AppPackages/**/*.appx
+            launcher/ProjectZero/AppPackages/**/*.appxbundle
+            launcher/ProjectZero/AppPackages/**/*.cer
+          if-no-files-found: warn

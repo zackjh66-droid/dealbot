@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ProjectZero.Pages.HandoffPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ProjectZero.Controls"
+    Background="{StaticResource PzBackground}"
+    NavigationCacheMode="Disabled">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="92" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="84" />
+        </Grid.RowDefinitions>
+
+        <Path Grid.RowSpan="3"
+              Data="M0,0 L430,0 L270,1080 L0,1080 Z"
+              Fill="#141024" Opacity="0.42"
+              HorizontalAlignment="Right" Stretch="Fill" Width="430"
+              IsHitTestVisible="False" />
+
+        <Grid Grid.Row="0" Margin="64,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="14">
+                <controls:BrandMark Width="36" Height="36" />
+                <StackPanel Spacing="3" VerticalAlignment="Center">
+                    <TextBlock Text="PROJECT ZERO" Style="{StaticResource PzDisplay}" FontSize="18" CharacterSpacing="260" />
+                    <TextBlock Text="CONSOLE DIVISION" Style="{StaticResource PzMono}" FontSize="9" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="10">
+                <Ellipse Width="7" Height="7" Fill="{StaticResource PzOkBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="SESSION ACTIVE" Style="{StaticResource PzMono}" FontSize="10" VerticalAlignment="Center" />
+            </StackPanel>
+            <Border Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Bottom" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="64,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.25*" />
+                <ColumnDefinition Width="0.85*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="SESSION READY" Style="{StaticResource PzEyebrow}" />
+                <TextBlock x:Name="UsernameText" Text="PLAYER"
+                           Style="{StaticResource PzDisplay}" FontSize="66" Margin="0,8,0,0" />
+                <TextBlock x:Name="AccountLineText" Text="ACCOUNT —"
+                           Style="{StaticResource PzMono}" FontSize="13" />
+
+                <StackPanel Margin="0,38,0,0" Spacing="14">
+                    <TextBlock x:Name="LogProfile" Text="PROFILE MOUNTED" Style="{StaticResource PzMono}" FontSize="12" />
+                    <TextBlock x:Name="LogBuild" Text="BUILD RESOLVED" Style="{StaticResource PzMono}" FontSize="12" />
+                    <TextBlock x:Name="LogTicket" Text="GAME TICKET" Style="{StaticResource PzMono}" FontSize="12" />
+                    <TextBlock x:Name="LogHandoff" Text="CLIENT HANDOFF" Style="{StaticResource PzMono}" FontSize="12" />
+                </StackPanel>
+
+                <Grid Height="4" Width="520" HorizontalAlignment="Left" Margin="0,30,0,0" Background="#FF171226">
+                    <Rectangle x:Name="ProgressFill" Width="30" Height="4" HorizontalAlignment="Left"
+                               Fill="{StaticResource PzBarGradient}" />
+                </Grid>
+
+                <TextBlock x:Name="StatusText" Text="NEGOTIATING SESSION"
+                           Style="{StaticResource PzMono}" FontSize="13"
+                           Foreground="{StaticResource PzTextBrush}" Margin="0,18,0,0" />
+            </StackPanel>
+
+            <Border Grid.Column="1" Style="{StaticResource PzPanel}" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="CLIENT PACKAGE" Style="{StaticResource PzEyebrow}" />
+
+                    <Grid Margin="0,24,0,0">
+                        <TextBlock Text="TARGET" Style="{StaticResource PzMono}" FontSize="10" />
+                        <TextBlock Text="UWP · x64" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+
+                    <Grid>
+                        <TextBlock Text="BUILD" Style="{StaticResource PzMono}" FontSize="10" />
+                        <TextBlock x:Name="BuildText" Text="—" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="{StaticResource PzTextBrush}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+
+                    <Grid>
+                        <TextBlock Text="PROTOCOL" Style="{StaticResource PzMono}" FontSize="10" />
+                        <TextBlock Text="projectzero-game" Style="{StaticResource PzMono}" FontSize="10"
+                                   Foreground="{StaticResource PzGoldBrush}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource PzLineBrush}" Margin="0,12" />
+
+                    <TextBlock x:Name="ClientStateText" Text="AWAITING HANDOFF"
+                               Style="{StaticResource PzMono}" FontSize="11"
+                               Foreground="{StaticResource PzGoldBrush}" Margin="0,14,0,0" />
+                    <TextBlock x:Name="ClientHelpText" Visibility="Collapsed"
+                               Style="{StaticResource PzMono}" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,12,0,0" LineHeight="20" />
+
+                    <Button x:Name="RetryButton" Content="RETRY HANDOFF" Visibility="Collapsed"
+                            Style="{StaticResource PzButton}" HorizontalAlignment="Stretch"
+                            Margin="0,22,0,0" Click="Retry_Click" />
+                    <Button Content="UNLINK CONSOLE"
+                            Style="{StaticResource PzGhostButton}" HorizontalAlignment="Stretch"
+                            Margin="0,12,0,0" Click="Unlink_Click" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="64,0">
+            <Border Height="1" Background="{StaticResource PzLineBrush}" VerticalAlignment="Top" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="30">
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                    <Border Background="#FF1A1530" CornerRadius="11" Width="22" Height="22">
+                        <TextBlock Text="A" FontSize="11" FontWeight="Bold"
+                                   Foreground="{StaticResource PzGoldBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="SELECT" Style="{StaticResource PzMono}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                    <Border Background="#FF1A1530" CornerRadius="11" Width="22" Height="22">
+                        <TextBlock Text="B" FontSize="11" FontWeight="Bold"
+                                   Foreground="{StaticResource PzGoldBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="BACK" Style="{StaticResource PzMono}" VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock x:Name="FooterText" Text="SEASON 6 / 7 · LOBBY SERVICES STANDBY"
+                       Style="{StaticResource PzMono}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+    </Grid>
+</Page>

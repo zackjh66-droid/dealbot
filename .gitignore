@@ -1,19 +1,40 @@
-# Project Zero
-.vs/
-**/bin/
-**/obj/
+# deps / build output
 node_modules/
 .next/
+out/
+.vercel/
+*.log
+
+# local env
 .env
-.env.*
+.env.local
+.env.*.local
+apps/web/.env
+apps/web/.env.local
 !.env.example
-*.pfx
-*.cer
+
+# .NET / UWP build output
+.vs/
+bin/
+obj/
+**/bin/
+**/obj/
+AppPackages/
 *.appx
 *.appxbundle
+*.appxupload
 *.msix
 *.msixbundle
 *.zip
+launcher/**/bin/
+launcher/**/obj/
+launcher/**/AppPackages/
+
+# signing material (public certs under launcher/certs stay tracked)
+*.pfx
+*.snk
+*.cer
+!launcher/certs/*.cer
 
 # Never commit game/client binaries or extracted Fortnite content
 FortniteClient*/
@@ -22,3 +43,7 @@ ClientFiles/
 *.pak
 *.ucas
 *.utoc
+
+# OS noise
+.DS_Store
+Thumbs.db

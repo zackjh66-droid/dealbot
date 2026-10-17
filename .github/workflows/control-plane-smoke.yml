@@ -1,0 +1,81 @@
+name: control-plane-smoke
+
+on:
+  push:
+    branches: ['arena/**', 'main']
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/control-plane-smoke.yml'
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/control-plane-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  handshake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE: https://project-zero-delta.vercel.app
+    steps:
+      - name: Wait for deployment
+        run: |
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/health" || true)
+            if [ "$code" = "200" ]; then echo "control plane up"; exit 0; fi
+            echo "health $code, retry $i"; sleep 10
+          done
+          echo "control plane did not come up"; exit 1
+
+      - name: Full handshake
+        run: |
+          set -euo pipefail
+          RUN="${{ github.run_number }}-$(date +%s)"
+          EMAIL="smoke+${RUN}@projectzero.dev"
+          USER="smoke_${{ github.run_number }}"
+
+          START=$(curl -fsS -X POST "$BASE/api/link/start" \
+            -H 'content-type: application/json' \
+            -d '{"deviceName":"CI smoke console","platform":"xbox","appVersion":"ci"}')
+          CODE=$(jq -er .code <<<"$START")
+          POLL=$(jq -er .pollToken <<<"$START")
+          jq -e '.linkUrl | startswith("https://") and (test("localhost") | not) and test("/link\\?code=")' <<<"$START" >/dev/null
+          echo "linkUrl=$(jq -r .linkUrl <<<"$START")"
+          echo "code=$CODE"
+
+          INSPECT=$(curl -fsS -X POST "$BASE/api/link/inspect" \
+            -H 'content-type: application/json' -d "{\"code\":\"$CODE\"}")
+          jq -e '.valid == true' <<<"$INSPECT" >/dev/null
+
+          CLAIM=$(curl -fsS -X POST "$BASE/api/link/claim" \
+            -H 'content-type: application/json' \
+            -d "{\"code\":\"$CODE\",\"email\":\"$EMAIL\",\"username\":\"$USER\"}")
+          jq -e '.token | length > 20' <<<"$CLAIM" >/dev/null
+          echo "$CLAIM" | jq -c '.account | {username, accountNo}'
+
+          POLLED=$(curl -fsS -X POST "$BASE/api/link/poll" \
+            -H 'content-type: application/json' \
+            -d "{\"code\":\"$CODE\",\"pollToken\":\"$POLL\"}")
+          jq -e '.status == "linked"' <<<"$POLLED" >/dev/null
+          SESSION=$(jq -er .sessionToken <<<"$POLLED")
+          jq -e '.builds | length > 0' <<<"$POLLED" >/dev/null
+          jq -e '.builds[0].buildLabel != null and .builds[0].launchUri != null' <<<"$POLLED" >/dev/null
+
+          TICKET=$(curl -fsS -X POST "$BASE/api/game/ticket" \
+            -H "authorization: Bearer $SESSION" \
+            -H 'content-type: application/json' -d '{}')
+          jq -e '.ticket | length > 20' <<<"$TICKET" >/dev/null
+          jq -e '.build.season >= 6 and .build.buildLabel != null' <<<"$TICKET" >/dev/null
+
+          ME=$(curl -fsS "$BASE/api/me" -H "authorization: Bearer $SESSION")
+          jq -e --arg u "$USER" '.account.username == $u' <<<"$ME" >/dev/null
+
+          echo "handshake ok"
+
+      - name: Clean smoke accounts
+        if: always()
+        run: |
+          if [ -n "${{ secrets.PZ_SMOKE_KEY }}" ]; then
+            curl -fsS -X POST "$BASE/api/admin/cleanup" -H "x-pz-admin: ${{ secrets.PZ_SMOKE_KEY }}" || true
+          fi
