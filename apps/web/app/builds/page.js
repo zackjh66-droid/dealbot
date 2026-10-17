@@ -3,12 +3,13 @@ import { db } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Build registry · Project Zero'
+  title: 'Builds · Project Zero'
 };
 
 export default async function BuildsPage() {
   let builds = [];
   let offline = false;
+
   try {
     const { data } = await db()
       .from('builds')
@@ -20,84 +21,72 @@ export default async function BuildsPage() {
     offline = true;
   }
 
-  const seasons = [6, 7];
+  const seasons = [7, 6];
 
   return (
     <div className="container page">
-      <div className="page-head">
-        <span className="eyebrow">Registry</span>
-        <h1>Season 06 / 07</h1>
+      <header className="page-head">
+        <span className="eyebrow">BUILD REGISTRY</span>
+        <h1>Archived builds.</h1>
         <p>
-          Builds tracked for the console channel. The archives are third party and this workspace does not
-          host or mirror them. Client packages must be rebuilt for UWP and signed before Dev Mode will load
-          them.
+          Reference metadata for the Chapter 1 builds Project Zero understands. Season 7 v7.00 / CL-4629139
+          is the current Xbox target. Archive links remain separate from the launcher and are only for content
+          you are authorised to hold.
         </p>
-      </div>
+      </header>
 
       {offline ? (
         <div className="alert" style={{ marginTop: 30 }}>
-          Registry unreachable. Control plane database is not answering.
+          The registry is temporarily unavailable. The launcher services are separate from this page.
         </div>
       ) : null}
 
       {seasons.map((season) => {
-        const rows = builds.filter((build) => build.season === season);
+        const rows = builds.filter((build) => Number(build.season) === season);
         return (
           <section className="section" key={season}>
             <div className="section-head">
               <div>
-                <span className="eyebrow dim">Channel</span>
-                <h2>Season {String(season).padStart(2, '0')}</h2>
+                <span className="eyebrow dim">CHAPTER 1</span>
+                <h2>Season {season}</h2>
               </div>
-              <p>{rows.length} tracked reference builds. Download links point to the public archive mirrors.</p>
+              <p>{rows.length ? `${rows.length} tracked build${rows.length === 1 ? '' : 's'}.` : 'No active builds in this channel.'}</p>
             </div>
+
             <div className="build-grid">
-              {rows.length ? (
-                rows.map((build) => (
-                  <div className="build-card" key={`${build.version}-${build.cl}`}>
-                    <span className="build-season">{build.build_label || `Season ${season}`}</span>
-                    <span className="build-version">{build.version}</span>
-                    <span className="build-cl">{build.cl}</span>
-                    {build.notes ? (
-                      <span className="note" style={{ fontSize: 11 }}>
-                        {build.notes}
-                      </span>
-                    ) : null}
-                    <span className="build-link" style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                      {build.download_url ? (
-                        <a href={build.download_url} target="_blank" rel="noreferrer">
-                          Mirror ↗
-                        </a>
-                      ) : null}
-                      {build.archive_url ? (
-                        <a href={build.archive_url} target="_blank" rel="noreferrer">
-                          Archive ↗
-                        </a>
-                      ) : null}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="build-card">
-                  <span className="build-season">Empty</span>
+              {rows.length ? rows.map((build) => (
+                <article className="build-card" key={`${build.version}-${build.cl}`}>
+                  <span className="build-season">{build.build_label || `Season ${season}`}</span>
+                  <span className="build-version">{build.version}</span>
+                  <span className="build-cl">{build.cl}</span>
+                  {build.notes ? <span className="note" style={{ marginTop: 10 }}>{build.notes}</span> : null}
+                  <span className="build-link" style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    {build.download_url ? <a href={build.download_url} target="_blank" rel="noreferrer">Mirror ↗</a> : null}
+                    {build.archive_url ? <a href={build.archive_url} target="_blank" rel="noreferrer">Archive ↗</a> : null}
+                  </span>
+                </article>
+              )) : (
+                <article className="build-card">
+                  <span className="build-season">No active entries</span>
                   <span className="build-version">—</span>
-                  <span className="build-cl">No builds registered in this channel.</span>
-                </div>
+                  <span className="build-cl">Nothing registered for Season {season}.</span>
+                </article>
               )}
             </div>
           </section>
         );
       })}
 
-      <div className="panel" style={{ padding: 28, marginTop: 20 }}>
-        <span className="eyebrow">Client status</span>
-        <p className="note" style={{ marginTop: 12 }}>
-          None of these PC archives are installable on Xbox as-is. The launcher expects a UWP client package
-          that registers <span className="mono gold">projectzero-game://launch</span>. Until that package is
-          built and signed, the launcher stops at the handoff screen. That is the current state of the
-          project, not a bug.
-        </p>
-      </div>
+      <section className="section">
+        <div className="panel side-panel">
+          <span className="eyebrow">XBOX NOTE</span>
+          <p className="note" style={{ marginTop: 12, maxWidth: '75ch' }}>
+            A Windows archive is not an Xbox package by itself. Project Zero keeps the archived files as content,
+            verifies them, and hands them to the separate Xbox-compatible client/runtime work. The current target
+            is Season 7 v7.00 / CL-4629139.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }
