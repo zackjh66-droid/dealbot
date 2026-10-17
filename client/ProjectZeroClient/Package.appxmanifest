@@ -26,5 +26,12 @@
    </Extensions>
   </Application>
  </Applications>
+ <Extensions>
+  <Extension Category="windows.publisherCacheFolders">
+   <PublisherCacheFolders>
+    <Folder Name="ProjectZeroContent"/>
+   </PublisherCacheFolders>
+  </Extension>
+ </Extensions>
  <Capabilities><Capability Name="internetClient"/></Capabilities>
 </Package>
