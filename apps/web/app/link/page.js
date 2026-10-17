@@ -8,11 +8,11 @@ export default function Page() {
     <Suspense
       fallback={
         <div className="container page">
-          <div className="page-head">
-            <span className="eyebrow">Console link</span>
-            <h1>Bind the box</h1>
-            <p>Loading handshake…</p>
-          </div>
+          <header className="page-head">
+            <span className="eyebrow">CONSOLE LINK</span>
+            <h1>Link your Xbox.</h1>
+            <p>Loading the console handshake…</p>
+          </header>
         </div>
       }
     >
