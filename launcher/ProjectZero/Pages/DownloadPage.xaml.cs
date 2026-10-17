@@ -14,6 +14,8 @@ namespace ProjectZero.Pages
 {
     public sealed partial class DownloadPage : Page
     {
+        private const ulong SafetyReserveBytes = 512UL * 1024UL * 1024UL;
+
         private ContentManifest _manifest;
         private CancellationTokenSource _downloadCts;
         private bool _busy;
@@ -42,6 +44,11 @@ namespace ProjectZero.Pages
             RetryButton.Visibility = Visibility.Collapsed;
             ContinueButton.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Collapsed;
+            StorageStateText.Text = "STORAGE CHECK PENDING";
+            StorageStateText.Foreground = (Brush)Application.Current.Resources["PzIceBrush"];
+            StorageValue.Text = "CHECKING";
+            StorageValue.Foreground = (Brush)Application.Current.Resources["PzIceBrush"];
+            RequiredValue.Text = "—";
 
             try
             {
@@ -53,6 +60,8 @@ namespace ProjectZero.Pages
                 {
                     DownloadStateText.Text = "CONTENT NOT READY";
                     TopStateText.Text = "WAITING";
+                    StorageStateText.Text = "WAITING FOR BUILD";
+                    StorageValue.Text = "—";
                     DetailText.Text = _manifest?.Reason ?? "The finalized Season 7 content manifest is not available yet.";
                     RetryButton.Visibility = Visibility.Visible;
                     RetryButton.Focus(FocusState.Programmatic);
@@ -75,7 +84,20 @@ namespace ProjectZero.Pages
 
                 if (await ContentStore.IsInstalledAsync(_manifest))
                 {
+                    RequiredValue.Text = "0 B";
+                    StorageStateText.Text = "CONTENT ALREADY INSTALLED";
+                    StorageStateText.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
+                    var installedFree = await TryGetFreeSpaceAsync();
+                    StorageValue.Text = installedFree.HasValue ? FormatBytes(installedFree.Value) : "AVAILABLE";
+                    StorageValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
                     MarkReady();
+                    return;
+                }
+
+                var missingBytes = await EstimateMissingBytesAsync(_manifest);
+                RequiredValue.Text = FormatBytes(missingBytes);
+                if (!await CheckStorageAsync(missingBytes))
+                {
                     return;
                 }
 
@@ -89,6 +111,119 @@ namespace ProjectZero.Pages
             {
                 _busy = false;
             }
+        }
+
+        private async Task<bool> CheckStorageAsync(ulong requiredBytes)
+        {
+            StorageStateText.Text = "CHECKING XBOX STORAGE";
+            var freeBytes = await TryGetFreeSpaceAsync();
+
+            if (!freeBytes.HasValue)
+            {
+                StorageValue.Text = "UNKNOWN";
+                StorageStateText.Text = "STORAGE CHECK UNAVAILABLE";
+                StorageStateText.Foreground = (Brush)Application.Current.Resources["PzIceBrush"];
+                DetailText.Text = "Xbox did not expose a free-space value, so Project Zero will continue and Windows will still stop the download if storage runs out.";
+                return true;
+            }
+
+            StorageValue.Text = FormatBytes(freeBytes.Value);
+            var neededWithReserve = requiredBytes > ulong.MaxValue - SafetyReserveBytes
+                ? ulong.MaxValue
+                : requiredBytes + SafetyReserveBytes;
+
+            if (freeBytes.Value < neededWithReserve)
+            {
+                StorageValue.Foreground = (Brush)Application.Current.Resources["PzDangerBrush"];
+                StorageStateText.Text = "NOT ENOUGH SPACE";
+                StorageStateText.Foreground = (Brush)Application.Current.Resources["PzDangerBrush"];
+                StateDot.Fill = (Brush)Application.Current.Resources["PzDangerBrush"];
+                ShowFailure(
+                    "NOT ENOUGH STORAGE",
+                    "This Xbox has " + FormatBytes(freeBytes.Value) + " free. Project Zero needs about " +
+                    FormatBytes(requiredBytes) + " for the remaining files plus 512 MB of free headroom. Free some storage, then choose Retry.");
+                return false;
+            }
+
+            StorageValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
+            StorageStateText.Text = "ENOUGH SPACE";
+            StorageStateText.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
+            DetailText.Text = "Storage check passed. " + FormatBytes(freeBytes.Value) + " is free and about " +
+                              FormatBytes(requiredBytes) + " remains to install. Every downloaded file will be verified before launch.";
+            return true;
+        }
+
+        private static async Task<ulong?> TryGetFreeSpaceAsync()
+        {
+            try
+            {
+                var folder = ApplicationData.Current.GetPublisherCacheFolder(ContentDownloader.SharedFolderName);
+                var values = await folder.Properties.RetrievePropertiesAsync(new[] { "System.FreeSpace" });
+                object value;
+                if (values.TryGetValue("System.FreeSpace", out value) && value != null)
+                {
+                    return Convert.ToUInt64(value);
+                }
+            }
+            catch
+            {
+                // Some Xbox OS builds/providers may not expose System.FreeSpace to this container.
+            }
+
+            return null;
+        }
+
+        private static async Task<ulong> EstimateMissingBytesAsync(ContentManifest manifest)
+        {
+            if (manifest == null) return 0;
+
+            if (IsMultiFile(manifest))
+            {
+                ulong missing = 0;
+                foreach (var item in manifest.Files)
+                {
+                    if (item == null) continue;
+                    var existing = await ContentDownloader.TryGetFileAsync(item.Path);
+                    if (existing != null)
+                    {
+                        try
+                        {
+                            var properties = await existing.GetBasicPropertiesAsync();
+                            if (properties.Size == item.Size)
+                            {
+                                continue;
+                            }
+                        }
+                        catch
+                        {
+                            // Count it as missing when the existing file cannot be inspected.
+                        }
+                    }
+
+                    missing += item.Size;
+                }
+
+                return missing;
+            }
+
+            var name = manifest.FileName ?? "season7-content.pkg";
+            var archive = await ContentDownloader.TryGetFileAsync(name);
+            if (archive != null)
+            {
+                try
+                {
+                    var properties = await archive.GetBasicPropertiesAsync();
+                    if (properties.Size == manifest.Size)
+                    {
+                        return 0;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return manifest.Size;
         }
 
         private async Task StartDownloadAsync()
@@ -197,7 +332,7 @@ namespace ProjectZero.Pages
                 PercentText.Text = percent.ToString("0.0") + "%";
                 BytesText.Text = FormatBytes(p.Received) + " / " +
                                  (p.Total > 0 ? FormatBytes(p.Total) : FormatBytes(_manifest.Size));
-                DownloadStateText.Text = "DOWNLOADING · " + (p.Status ?? "RUNNING").ToUpperInvariant();
+                DownloadStateText.Text = "DOWNLOADING / " + (p.Status ?? "RUNNING").ToUpperInvariant();
             });
 
             var file = await ContentDownloader.DownloadAsync(
@@ -233,13 +368,13 @@ namespace ProjectZero.Pages
             PercentText.Text = percent.ToString("0.0") + "%";
             BytesText.Text = FormatBytes(received) + " / " + FormatBytes(total);
             FileValue.Text = fileNumber + " / " + fileCount;
-            DownloadStateText.Text = (status ?? "RUNNING").ToUpperInvariant() + " · " + ShortPath(path);
+            DownloadStateText.Text = (status ?? "RUNNING").ToUpperInvariant() + " / " + ShortPath(path);
             TopStateText.Text = "DOWNLOADING";
         }
 
         private void SetProgress(double percent)
         {
-            var width = ProgressTrack.ActualWidth > 0 ? ProgressTrack.ActualWidth : 640.0;
+            var width = ProgressTrack.ActualWidth > 0 ? ProgressTrack.ActualWidth : 650.0;
             DownloadProgressFill.Width = width * Math.Max(0, Math.Min(100, percent)) / 100.0;
         }
 
@@ -251,6 +386,8 @@ namespace ProjectZero.Pages
             TopStateText.Text = "READY";
             IntegrityValue.Text = "VERIFIED";
             IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
+            StorageStateText.Text = "INSTALL READY";
+            StorageStateText.Foreground = (Brush)Application.Current.Resources["PzOkBrush"];
             DetailText.Text = IsMultiFile(_manifest)
                 ? "Season 7 files are restored in their original folder layout and verified. Continue to the Xbox client."
                 : "Season 7 content is present and verified. Continue to the Xbox client.";
@@ -267,6 +404,8 @@ namespace ProjectZero.Pages
             TopStateText.Text = "ERROR";
             DetailText.Text = detail;
             IntegrityValue.Text = "FAILED";
+            IntegrityValue.Foreground = (Brush)Application.Current.Resources["PzDangerBrush"];
+            StateDot.Fill = (Brush)Application.Current.Resources["PzDangerBrush"];
             RetryButton.Visibility = Visibility.Visible;
             ContinueButton.Visibility = Visibility.Collapsed;
             CancelButton.Visibility = Visibility.Collapsed;
@@ -275,21 +414,7 @@ namespace ProjectZero.Pages
 
         private async void Retry_Click(object sender, RoutedEventArgs e)
         {
-            if (_manifest != null && _manifest.Available && HasUsableSource(_manifest))
-            {
-                if (IsMultiFile(_manifest))
-                {
-                    await PrepareAsync();
-                }
-                else
-                {
-                    await StartDownloadAsync();
-                }
-            }
-            else
-            {
-                await PrepareAsync();
-            }
+            await PrepareAsync();
         }
 
         private void Continue_Click(object sender, RoutedEventArgs e)
