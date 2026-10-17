@@ -10,10 +10,16 @@
     <Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile>
     <Compile Include="Controls\BrandMark.xaml.cs"><DependentUpon>BrandMark.xaml</DependentUpon></Compile>
     <Compile Include="Models\ApiModels.cs" />
+    <Compile Include="Pages\DownloadPage.xaml.cs"><DependentUpon>DownloadPage.xaml</DependentUpon></Compile>
     <Compile Include="Pages\HandoffPage.xaml.cs"><DependentUpon>HandoffPage.xaml</DependentUpon></Compile>
     <Compile Include="Pages\LinkPage.xaml.cs"><DependentUpon>LinkPage.xaml</DependentUpon></Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Services\ApiClient.cs" /><Compile Include="Services\AppConfig.cs" /><Compile Include="Services\ContentDownloader.cs" /><Compile Include="Services\GameLauncher.cs" /><Compile Include="Services\SessionStore.cs" />
+    <Compile Include="Services\ApiClient.cs" />
+    <Compile Include="Services\AppConfig.cs" />
+    <Compile Include="Services\ContentDownloader.cs" />
+    <Compile Include="Services\ContentStore.cs" />
+    <Compile Include="Services\GameLauncher.cs" />
+    <Compile Include="Services\SessionStore.cs" />
   </ItemGroup>
   <ItemGroup><AppxManifest Include="Package.appxmanifest"><SubType>Designer</SubType></AppxManifest></ItemGroup>
   <ItemGroup>
@@ -22,6 +28,7 @@
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml"><Generator>MSBuild:Compile</Generator><SubType>Designer</SubType></ApplicationDefinition>
     <Page Include="Controls\BrandMark.xaml"><SubType>Designer</SubType><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="Pages\DownloadPage.xaml"><SubType>Designer</SubType><Generator>MSBuild:Compile</Generator></Page>
     <Page Include="Pages\HandoffPage.xaml"><SubType>Designer</SubType><Generator>MSBuild:Compile</Generator></Page>
     <Page Include="Pages\LinkPage.xaml"><SubType>Designer</SubType><Generator>MSBuild:Compile</Generator></Page>
     <Page Include="Styles\Theme.xaml"><SubType>Designer</SubType><Generator>MSBuild:Compile</Generator></Page>
