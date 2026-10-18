@@ -2,8 +2,10 @@ import './globals.css';
 import './theme.css';
 import './brand-font.css';
 import './home.css';
+import './experience.css';
 import Link from 'next/link';
 import Brand from '@/components/Brand';
+import RouteExperience from '@/components/RouteExperience';
 
 export const metadata = {
   title: 'Project Zero · Season 7 on Xbox',
@@ -21,6 +23,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
+        <RouteExperience />
         <div className="shell">
           <header className="nav">
             <div className="container nav-inner">
