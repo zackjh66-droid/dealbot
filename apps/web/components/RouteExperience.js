@@ -26,6 +26,19 @@ function routeLabel(pathname = '/') {
   }[variant];
 }
 
+function routeSubLabel(pathname = '/') {
+  const variant = routeVariant(pathname);
+  return {
+    home: 'SEASON 7 · XBOX DEV MODE',
+    downloads: 'SIGNED PACKAGES · GAME, NOT APP',
+    launcher: 'CONTROLLER-FIRST CONSOLE SHELL',
+    link: 'DEVICE CODE · QR · SESSION',
+    account: 'PROFILE · DEVICES · SESSIONS',
+    builds: '7.00 · CL-4629139',
+    default: 'PROJECT ZERO · SEASON 7'
+  }[variant];
+}
+
 export default function RouteExperience() {
   const pathname = usePathname();
   const router = useRouter();
@@ -55,14 +68,25 @@ export default function RouteExperience() {
         const pieces = overlay.querySelectorAll('[data-transition-piece]');
         const ring = overlay.querySelector('[data-transition-ring]');
         const label = overlay.querySelector('[data-transition-label]');
+        const sub = overlay.querySelector('[data-transition-sub]');
+        const bar = overlay.querySelector('[data-transition-bar]');
+        const media = overlay.querySelector('[data-transition-media]');
         overlay.dataset.variant = variant;
         if (label) label.textContent = routeLabel(pathname);
+        if (sub) sub.textContent = routeSubLabel(pathname);
 
         const reveal = gsap.timeline({ defaults: { ease: 'power3.inOut' } });
         reveal
-          .to(pieces, { xPercent: (i) => (i % 2 ? 118 : -118), yPercent: (i) => (variant === 'launcher' ? (i % 2 ? 112 : -112) : 0), duration: .58, stagger: .025 }, 0)
-          .to(ring, { scale: variant === 'link' ? 7 : 2.8, opacity: 0, duration: .6 }, 0)
-          .to(label, { opacity: 0, y: -16, duration: .26 }, .08)
+          .to(bar, { scaleX: 1, duration: .22, ease: 'power2.out' }, 0)
+          .to(media, { scale: 1.07, opacity: 0, duration: .68 }, 0)
+          .to(pieces, {
+            xPercent: (i) => (i % 2 ? 118 : -118),
+            yPercent: (i) => (variant === 'launcher' ? (i % 2 ? 112 : -112) : 0),
+            duration: .62,
+            stagger: .024
+          }, .04)
+          .to(ring, { scale: variant === 'link' ? 7 : 2.9, opacity: 0, duration: .62 }, .02)
+          .to([label, sub], { opacity: 0, y: -16, duration: .24, stagger: .025 }, .08)
           .set(overlay, { autoAlpha: 0, pointerEvents: 'none' });
       }
 
@@ -76,71 +100,113 @@ export default function RouteExperience() {
           const kicker = head.querySelector('.eyebrow');
           const copy = head.querySelector('p');
           const from = {
-            downloads: { x: -90, rotateY: 8 },
-            launcher: { y: 80, rotateX: 10 },
-            link: { scale: .86, z: -180 },
-            account: { x: 90, rotateY: -8 },
-            builds: { y: -70, rotateX: -8 },
-            default: { y: 54 }
-          }[variant] || { y: 54 };
+            downloads: { x: -92, rotateY: 9, z: -80 },
+            launcher: { y: 86, rotateX: 11, z: -100 },
+            link: { scale: .84, z: -190 },
+            account: { x: 94, rotateY: -9, z: -70 },
+            builds: { y: -72, rotateX: -9, z: -90 },
+            default: { y: 56, z: -60 }
+          }[variant] || { y: 56 };
+
           gsap.fromTo([kicker, title, copy].filter(Boolean),
-            { ...from, opacity: 0, transformPerspective: 1100 },
-            { x: 0, y: 0, z: 0, rotateX: 0, rotateY: 0, scale: 1, opacity: 1, duration: .9, stagger: .08, ease: 'power3.out', clearProps: 'transform' }
+            { ...from, opacity: 0, transformPerspective: 1200 },
+            {
+              x: 0, y: 0, z: 0, rotateX: 0, rotateY: 0, scale: 1, opacity: 1,
+              duration: .95, stagger: .075, ease: 'power3.out', clearProps: 'transform'
+            }
           );
         }
 
         if (variant === 'downloads') {
+          const releaseBar = root.querySelector('.download-release-bar');
+          if (releaseBar) {
+            gsap.fromTo(releaseBar,
+              { xPercent: 12, opacity: 0, filter: 'blur(10px)' },
+              { xPercent: 0, opacity: 1, filter: 'blur(0px)', duration: .75, ease: 'power3.out' }
+            );
+          }
+
           gsap.utils.toArray('.download-row', root).forEach((row, index) => {
             gsap.fromTo(row,
-              { y: 110, z: -220, rotateX: 9, opacity: .14, transformPerspective: 1200 },
+              { y: 110, z: -230, rotateX: 9, opacity: .12, transformPerspective: 1250 },
               {
                 y: 0, z: 0, rotateX: 0, opacity: 1, ease: 'none',
-                scrollTrigger: { trigger: row, start: 'top 94%', end: 'top 53%', scrub: .65 }
+                scrollTrigger: { trigger: row, start: 'top 96%', end: 'top 50%', scrub: .68 }
               }
             );
             gsap.to(row, {
-              '--glass-shift': `${18 + index * 11}%`,
+              '--glass-shift': `${18 + index * 12}%`,
               scrollTrigger: { trigger: row, start: 'top bottom', end: 'bottom top', scrub: true }
             });
           });
         } else if (variant === 'launcher') {
-          const tv = root.querySelector('.tv');
-          if (tv) {
-            gsap.fromTo(tv,
-              { scale: .86, z: -260, rotateX: 8, opacity: .2, transformPerspective: 1400 },
-              { scale: 1, z: 0, rotateX: 0, opacity: 1, duration: 1, ease: 'power3.out' }
+          const stage = root.querySelector('.fn-preview-stage') || root.querySelector('.tv');
+          const background = root.querySelector('.fn-preview-bg') || root.querySelector('.tv-bg');
+          const cards = gsap.utils.toArray('.fn-preview-card, .tv-body > *, .tv .panel', root);
+
+          if (stage) {
+            gsap.fromTo(stage,
+              { scale: .84, z: -280, rotateX: 9, opacity: .18, transformPerspective: 1450 },
+              { scale: 1, z: 0, rotateX: 0, opacity: 1, duration: 1.05, ease: 'power3.out' }
             );
-            gsap.to('.tv-bg', {
-              scale: 1.1,
-              scrollTrigger: { trigger: tv, start: 'top 70%', end: 'bottom 15%', scrub: .8 }
+
+            if (background) {
+              gsap.to(background, {
+                scale: 1.11,
+                yPercent: -2,
+                scrollTrigger: { trigger: stage, start: 'top 76%', end: 'bottom 10%', scrub: .8 }
+              });
+            }
+
+            cards.forEach((card, index) => {
+              gsap.fromTo(card,
+                { y: 65 + index * 8, z: -130, opacity: .25, rotateX: 6, transformPerspective: 1000 },
+                {
+                  y: 0, z: 0, opacity: 1, rotateX: 0, ease: 'none',
+                  scrollTrigger: { trigger: stage, start: `${28 + index * 4}% 82%`, end: `${58 + index * 3}% 55%`, scrub: .55 }
+                }
+              );
             });
           }
         } else if (variant === 'link') {
           const panels = gsap.utils.toArray('.flow-grid .panel', root);
           panels.forEach((panel, index) => {
             gsap.fromTo(panel,
-              { x: index ? 90 : -90, z: -210, rotateY: index ? -10 : 10, opacity: 0, transformPerspective: 1300 },
-              { x: 0, z: 0, rotateY: 0, opacity: 1, duration: .95, delay: .15 + index * .08, ease: 'power3.out' }
+              { x: index ? 96 : -96, z: -220, rotateY: index ? -11 : 11, opacity: 0, transformPerspective: 1350 },
+              { x: 0, z: 0, rotateY: 0, opacity: 1, duration: .98, delay: .14 + index * .08, ease: 'power3.out' }
             );
           });
+          const code = root.querySelector('.code-input');
+          if (code) {
+            gsap.fromTo(code,
+              { boxShadow: '0 0 0 rgba(112,217,255,0)' },
+              { boxShadow: '0 0 42px rgba(112,217,255,.15)', duration: 1.4, yoyo: true, repeat: 1, ease: 'sine.inOut' }
+            );
+          }
         } else if (variant === 'account') {
           const panels = gsap.utils.toArray('.account-grid .panel, .page > .panel', root);
           panels.forEach((panel, index) => {
             gsap.fromTo(panel,
-              { xPercent: index % 2 ? 18 : -18, y: 45, opacity: 0, rotateY: index % 2 ? -7 : 7, transformPerspective: 1200 },
-              { xPercent: 0, y: 0, rotateY: 0, opacity: 1, duration: .85, delay: .12 + index * .08, ease: 'power3.out' }
+              { xPercent: index % 2 ? 20 : -20, y: 48, z: -120, opacity: 0, rotateY: index % 2 ? -8 : 8, transformPerspective: 1250 },
+              { xPercent: 0, y: 0, z: 0, rotateY: 0, opacity: 1, duration: .9, delay: .1 + index * .08, ease: 'power3.out' }
             );
           });
         } else if (variant === 'builds') {
           gsap.utils.toArray('.build-card', root).forEach((card, index) => {
             gsap.fromTo(card,
-              { y: 70, z: -120, rotateX: 7, opacity: 0, transformPerspective: 1000 },
-              { y: 0, z: 0, rotateX: 0, opacity: 1, duration: .7, delay: index * .06, ease: 'power3.out' }
+              { y: 74, z: -145, rotateX: 8, opacity: 0, transformPerspective: 1050 },
+              {
+                y: 0, z: 0, rotateX: 0, opacity: 1, ease: 'none',
+                scrollTrigger: { trigger: card, start: 'top 94%', end: 'top 66%', scrub: .52 }
+              }
             );
           });
         } else if (variant !== 'home') {
-          gsap.utils.toArray('.panel', root).forEach((panel) => {
-            gsap.fromTo(panel, { y: 42, opacity: 0 }, { y: 0, opacity: 1, duration: .65, ease: 'power2.out' });
+          gsap.utils.toArray('.panel', root).forEach((panel, index) => {
+            gsap.fromTo(panel,
+              { y: 46 + index * 8, opacity: 0, z: -90 },
+              { y: 0, z: 0, opacity: 1, duration: .7, ease: 'power2.out' }
+            );
           });
         }
 
@@ -156,6 +222,46 @@ export default function RouteExperience() {
     return () => {
       disposed = true;
       cleanup();
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    const selector = [
+      '[data-pz-interactive]',
+      '.btn',
+      '.download-action:not(.disabled)',
+      '.nav-links a',
+      '.tv-tabs button',
+      '.build-card',
+      '.download-row',
+      '.panel'
+    ].join(',');
+
+    function onMove(event) {
+      const element = event.target.closest?.(selector);
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+      element.style.setProperty('--pz-mx', `${x * 100}%`);
+      element.style.setProperty('--pz-my', `${y * 100}%`);
+      element.style.setProperty('--pz-rx', `${(x - .5) * 4.2}deg`);
+      element.style.setProperty('--pz-ry', `${(.5 - y) * 4.2}deg`);
+    }
+
+    function onLeave(event) {
+      const element = event.target.closest?.(selector);
+      if (!element) return;
+      element.style.setProperty('--pz-rx', '0deg');
+      element.style.setProperty('--pz-ry', '0deg');
+    }
+
+    document.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerout', onLeave, { passive: true });
+    return () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerout', onLeave);
     };
   }, [pathname]);
 
@@ -189,22 +295,30 @@ export default function RouteExperience() {
       const pieces = overlay.querySelectorAll('[data-transition-piece]');
       const ring = overlay.querySelector('[data-transition-ring]');
       const label = overlay.querySelector('[data-transition-label]');
+      const sub = overlay.querySelector('[data-transition-sub]');
+      const bar = overlay.querySelector('[data-transition-bar]');
+      const media = overlay.querySelector('[data-transition-media]');
       if (label) label.textContent = routeLabel(url.pathname);
+      if (sub) sub.textContent = routeSubLabel(url.pathname);
 
       gsap.set(overlay, { autoAlpha: 1, pointerEvents: 'all' });
-      gsap.set(label, { opacity: 0, y: 18 });
+      gsap.set([label, sub], { opacity: 0, y: 18 });
+      gsap.set(bar, { scaleX: 0, transformOrigin: 'left center' });
+      gsap.set(media, { opacity: .42, scale: 1.16 });
       gsap.set(ring, { opacity: 1, scale: targetVariant === 'link' ? .08 : .3 });
 
       if (targetVariant === 'launcher') {
-        gsap.set(pieces, { xPercent: 0, yPercent: (i) => (i % 2 ? 110 : -110) });
+        gsap.set(pieces, { xPercent: 0, yPercent: (i) => (i % 2 ? 112 : -112) });
       } else if (targetVariant === 'account') {
-        gsap.set(pieces, { xPercent: (i) => (i % 2 ? 110 : -110), yPercent: 0 });
+        gsap.set(pieces, { xPercent: (i) => (i % 2 ? 112 : -112), yPercent: 0 });
       } else if (targetVariant === 'downloads') {
-        gsap.set(pieces, { xPercent: (i) => (i === 1 ? 110 : -110), yPercent: 0 });
+        gsap.set(pieces, { xPercent: (i) => (i === 1 ? 112 : -112), yPercent: 0 });
       } else if (targetVariant === 'link') {
         gsap.set(pieces, { xPercent: 0, yPercent: 0, opacity: 0 });
+      } else if (targetVariant === 'builds') {
+        gsap.set(pieces, { xPercent: (i) => (i === 0 ? -112 : i === 1 ? 112 : 0), yPercent: (i) => (i === 2 ? 112 : 0) });
       } else {
-        gsap.set(pieces, { xPercent: (i) => (i % 2 ? 110 : -110), yPercent: 0 });
+        gsap.set(pieces, { xPercent: (i) => (i % 2 ? 112 : -112), yPercent: 0 });
       }
 
       const tl = gsap.timeline({
@@ -216,10 +330,13 @@ export default function RouteExperience() {
         tl.to(ring, { scale: 7.5, duration: .58 }, 0)
           .to(pieces, { opacity: 1, duration: .28 }, .24);
       } else {
-        tl.to(pieces, { xPercent: 0, yPercent: 0, duration: .52, stagger: .025 }, 0)
-          .to(ring, { scale: 2.4, duration: .5 }, .04);
+        tl.to(pieces, { xPercent: 0, yPercent: 0, duration: .54, stagger: .024 }, 0)
+          .to(ring, { scale: 2.45, duration: .5 }, .04);
       }
-      tl.to(label, { opacity: 1, y: 0, duration: .24 }, .25);
+
+      tl.to(media, { opacity: .74, scale: 1.05, duration: .52 }, .04)
+        .to([label, sub], { opacity: 1, y: 0, duration: .24, stagger: .03 }, .24)
+        .to(bar, { scaleX: 1, duration: .32, ease: 'power2.out' }, .27);
     }
 
     document.addEventListener('click', onClick, true);
@@ -228,11 +345,17 @@ export default function RouteExperience() {
 
   return (
     <div ref={overlayRef} className="pz-transition" aria-hidden="true">
+      <span className="pz-transition-media" data-transition-media />
+      <span className="pz-transition-grid" />
       <span className="pz-transition-piece pz-transition-piece-a" data-transition-piece />
       <span className="pz-transition-piece pz-transition-piece-b" data-transition-piece />
       <span className="pz-transition-piece pz-transition-piece-c" data-transition-piece />
       <span className="pz-transition-ring" data-transition-ring />
-      <strong className="pz-transition-label" data-transition-label>PROJECT ZERO</strong>
+      <div className="pz-transition-copy">
+        <strong className="pz-transition-label" data-transition-label>PROJECT ZERO</strong>
+        <span className="pz-transition-sub" data-transition-sub>SEASON 7 · XBOX DEV MODE</span>
+        <i className="pz-transition-bar"><b data-transition-bar /></i>
+      </div>
     </div>
   );
 }
