@@ -3,6 +3,7 @@ import './theme.css';
 import './brand-font.css';
 import './home.css';
 import './experience.css';
+import './neo-polish.css';
 import Link from 'next/link';
 import Brand from '@/components/Brand';
 import RouteExperience from '@/components/RouteExperience';
