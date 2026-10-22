@@ -1,0 +1,375 @@
+/* Project Zero visual polish inspired by the user's Neo reference video.
+   The motion language is original: static/noise hover, refractive glass, pinned reveals,
+   and route-specific loading treatments rather than a direct copy of another site. */
+
+:root {
+  --pz-ice: #dff8ff;
+  --pz-sky: #76ddff;
+  --pz-violet: #a77bff;
+  --pz-lime: #d9ff35;
+  --pz-ink: #05070b;
+}
+
+/* Pointer-reactive hover treatment. The tiny static pattern is intentionally similar in feel
+   to the creator-card hover shown in the supplied reference video without copying its assets. */
+:is([data-pz-interactive], .btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, .build-card, .download-row, .panel) {
+  --pz-mx: 50%;
+  --pz-my: 50%;
+  --pz-rx: 0deg;
+  --pz-ry: 0deg;
+  position: relative;
+  isolation: isolate;
+  transform-style: preserve-3d;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), border-color .22s ease, box-shadow .22s ease, background .22s ease;
+}
+
+:is([data-pz-interactive], .btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, .build-card, .download-row, .panel)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(circle at var(--pz-mx) var(--pz-my), rgba(255,255,255,.2), transparent 30%),
+    repeating-radial-gradient(circle at 17% 23%, rgba(255,255,255,.15) 0 1px, transparent 1px 3px);
+  background-size: auto, 7px 7px;
+  mix-blend-mode: screen;
+  transition: opacity .18s ease;
+}
+
+:is([data-pz-interactive], .btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, .build-card, .download-row, .panel)::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  border: 1px solid rgba(255,255,255,.56);
+  box-shadow: inset 0 0 28px rgba(255,255,255,.04), 0 0 24px rgba(112,217,255,.1);
+  transition: opacity .18s ease;
+}
+
+:is([data-pz-interactive], .btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, .build-card, .download-row, .panel):hover {
+  transform: perspective(900px) rotateX(var(--pz-ry)) rotateY(var(--pz-rx)) translateY(-2px) translateZ(6px);
+  border-color: rgba(255,255,255,.52) !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.28), 0 18px 50px rgba(0,0,0,.24), 0 0 34px rgba(112,217,255,.08);
+}
+
+:is([data-pz-interactive], .btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, .build-card, .download-row, .panel):hover::before,
+:is([data-pz-interactive], .btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, .build-card, .download-row, .panel):hover::after {
+  opacity: 1;
+}
+
+:is(.btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, [data-pz-interactive][href]):hover::before {
+  animation: pz-static-jitter .18s steps(2, end) infinite;
+}
+
+@keyframes pz-static-jitter {
+  0% { background-position: 0 0, 0 0; }
+  25% { background-position: 1px -1px, 3px 1px; }
+  50% { background-position: -1px 1px, -2px 3px; }
+  75% { background-position: 1px 1px, 1px -2px; }
+  100% { background-position: 0 0, 0 0; }
+}
+
+/* Refractive liquid-glass edge. */
+[data-pz-interactive]:not(a):not(button) {
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+}
+
+[data-pz-interactive]:not(a):not(button) > * {
+  position: relative;
+  z-index: 6;
+}
+
+/* Fortnite-inspired in-site UI mockup. This is a custom Project Zero interface, not an extracted game UI. */
+.pz-fn-lobby {
+  position: absolute;
+  z-index: 26;
+  right: 4vw;
+  top: 12vh;
+  width: min(430px, 36vw);
+  min-height: 250px;
+  padding: 0;
+  overflow: hidden;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.32);
+  background:
+    linear-gradient(145deg, rgba(50,117,197,.72), rgba(15,56,111,.62) 48%, rgba(13,27,52,.78)),
+    rgba(9,17,32,.58);
+  box-shadow: inset 0 1px rgba(255,255,255,.28), 0 30px 90px rgba(0,0,0,.4), 0 0 48px rgba(88,181,255,.12);
+  backdrop-filter: blur(25px) saturate(170%);
+  -webkit-backdrop-filter: blur(25px) saturate(170%);
+  clip-path: polygon(0 0, 96% 0, 100% 7%, 100% 100%, 4% 100%, 0 93%);
+}
+
+.pz-fn-lobby::after { inset: 5px; border-color: rgba(255,255,255,.18); }
+
+.pz-fn-tabs {
+  display: flex;
+  gap: 0;
+  min-height: 40px;
+  align-items: stretch;
+  background: rgba(0,18,48,.54);
+  border-bottom: 1px solid rgba(255,255,255,.18);
+  font-family: var(--display-heavy);
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+.pz-fn-tabs span,
+.pz-fn-tabs b {
+  display: grid;
+  place-items: center;
+  padding: 0 14px;
+  font-style: normal;
+  font-weight: 800;
+}
+.pz-fn-tabs b {
+  color: #071019;
+  background: #f7df3f;
+  transform: skewX(-7deg);
+}
+
+.pz-fn-player {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 24px 14px;
+}
+.pz-fn-avatar {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.92);
+  background: radial-gradient(circle at 35% 30%, #9df3ff, #5276ff 48%, #18224b 74%);
+  box-shadow: 0 0 0 4px rgba(69,226,255,.18), 0 0 28px rgba(69,226,255,.28);
+  font-family: var(--display-heavy);
+  font-size: 18px;
+}
+.pz-fn-player strong,
+.pz-fn-player small { display: block; }
+.pz-fn-player strong { font-family: var(--display-heavy); font-size: 18px; letter-spacing: -.02em; }
+.pz-fn-player small { margin-top: 4px; color: rgba(255,255,255,.64); font-family: var(--mono); font-size: 8px; letter-spacing: .12em; }
+
+.pz-fn-mode {
+  margin: 8px 18px 18px;
+  padding: 17px 18px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.2);
+  background: linear-gradient(120deg, rgba(5,18,41,.74), rgba(13,36,72,.54));
+}
+.pz-fn-mode::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 28%, rgba(255,255,255,.1) 46%, transparent 58%);
+  transform: translateX(-70%);
+  animation: pz-fn-sheen 4.5s ease-in-out infinite;
+}
+.pz-fn-mode > * { position: relative; z-index: 2; }
+.pz-fn-mode small,
+.pz-fn-mode span { display: block; font-family: var(--mono); font-size: 8px; letter-spacing: .12em; color: rgba(255,255,255,.62); }
+.pz-fn-mode strong { display: block; margin-top: 3px; font-family: var(--display-heavy); font-size: 29px; letter-spacing: -.04em; }
+.pz-fn-mode em {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  min-width: 82px;
+  padding: 9px 12px;
+  text-align: center;
+  color: #0b1114;
+  background: #f4df3e;
+  border: 2px solid rgba(255,255,255,.7);
+  font-family: var(--display-heavy);
+  font-size: 11px;
+  font-style: normal;
+  transform: skewX(-5deg);
+}
+
+@keyframes pz-fn-sheen {
+  0%, 60% { transform: translateX(-75%); opacity: 0; }
+  70% { opacity: .8; }
+  100% { transform: translateX(85%); opacity: 0; }
+}
+
+/* Route loading screens now use different Season 7 treatments rather than one generic wipe. */
+.pz-transition::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -4;
+  background-position: center;
+  background-size: cover;
+  filter: saturate(.8) contrast(1.06);
+  transform: scale(1.05);
+}
+.pz-transition[data-variant="home"]::before,
+.pz-transition[data-variant="downloads"]::before {
+  background-image: linear-gradient(rgba(4,7,13,.32), rgba(4,7,13,.74)), url("https://cdn2.unrealengine.com/Fortnite%2Fblog%2Ftake-to-the-skies-in-season-7%2FBR07_News_Featured_16_9-1920x1080-c8c58d82b2986bf9615c839d53bb7763c06895c5.jpg");
+}
+.pz-transition[data-variant="launcher"]::before,
+.pz-transition[data-variant="builds"]::before {
+  background-image: linear-gradient(rgba(4,7,13,.24), rgba(4,7,13,.78)), url("https://cdn2.unrealengine.com/Fortnite%2Fpatch-notes%2Fv7-00%2Foverview-text-v7-00%2FBR07_Social_Stormwing-1920x1080-8ca2d8dab3afdb8d23f41993b718edd0db5a57ce.jpg");
+}
+.pz-transition[data-variant="link"]::before,
+.pz-transition[data-variant="account"]::before {
+  background-image: linear-gradient(rgba(4,7,13,.3), rgba(4,7,13,.82)), url("https://cdn2.unrealengine.com/Fortnite%2Fpatch-notes%2Fv7-00%2Foverview-text-v7-00%2FBR07_Social_Wraps-1920x1080-d705ed4633562dbb5efcb1803684b9e09f797e61.jpg");
+}
+
+.pz-transition-media {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  opacity: .5;
+  background: radial-gradient(circle at 50% 44%, transparent 0 24%, rgba(3,5,9,.52) 60%, rgba(3,5,9,.92) 100%);
+}
+
+.pz-transition-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: .12;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, #000, transparent 78%);
+}
+
+.pz-transition-copy {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  top: 50%;
+  width: min(680px, calc(100% - 42px));
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+.pz-transition-label { position: static; display: block; font-size: clamp(28px, 6vw, 82px); line-height: .88; letter-spacing: -.035em; }
+.pz-transition-sub { display: block; margin-top: 13px; color: rgba(255,255,255,.58); font-family: var(--mono); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; }
+.pz-transition-bar { display: block; width: min(360px, 66vw); height: 2px; margin: 22px auto 0; overflow: hidden; background: rgba(255,255,255,.18); }
+.pz-transition-bar b { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, var(--pz-sky), #fff, var(--pz-violet)); box-shadow: 0 0 18px rgba(118,221,255,.6); }
+
+/* Downloads: broad editorial rows, not tiny SaaS cards. */
+body[data-route="downloads"] .downloads-page {
+  position: relative;
+  padding-bottom: 110px;
+}
+body[data-route="downloads"] .download-row {
+  min-height: 210px;
+  margin-top: 18px;
+  padding: 26px 28px;
+  border-radius: 0 !important;
+  clip-path: polygon(0 0, 98% 0, 100% 8%, 100% 100%, 2% 100%, 0 92%);
+}
+body[data-route="downloads"] .download-title { font-size: clamp(34px, 4.4vw, 64px); }
+
+/* Link page: console handshake treatment. */
+body[data-route="link"] .flow-grid { perspective: 1400px; }
+body[data-route="link"] .flow-grid .panel { border-radius: 0; clip-path: polygon(0 0, 96% 0, 100% 7%, 100% 100%, 4% 100%, 0 93%); }
+body[data-route="link"] .code-input { letter-spacing: .34em; }
+
+/* Account: warmer violet glass instead of sharing the exact link/download look. */
+body[data-route="account"] .account-grid .panel,
+body[data-route="account"] .page > .panel {
+  background: linear-gradient(135deg, rgba(167,123,255,.12), rgba(255,255,255,.024) 38%, rgba(20,23,36,.64)) !important;
+}
+
+/* Build cards use Neo-reference-style static on hover. */
+body[data-route="builds"] .build-card:hover::before {
+  opacity: .82;
+  background:
+    radial-gradient(circle at var(--pz-mx) var(--pz-my), rgba(255,255,255,.16), transparent 24%),
+    repeating-radial-gradient(circle, rgba(255,255,255,.18) 0 1px, transparent 1px 3px);
+  background-size: auto, 6px 6px;
+  animation: pz-static-jitter .16s steps(2,end) infinite;
+}
+
+/* Launcher web preview: Fortnite-inspired composition with Season 7 art. */
+.fn-preview-stage {
+  position: relative;
+  min-height: min(720px, 74svh);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.18);
+  background: #0c1b34;
+  box-shadow: 0 42px 120px rgba(0,0,0,.42);
+  isolation: isolate;
+  perspective: 1500px;
+}
+.fn-preview-bg {
+  position: absolute;
+  inset: -5%;
+  width: 110%;
+  height: 110%;
+  object-fit: cover;
+  filter: saturate(.92) contrast(1.05);
+  transform: scale(1.03);
+}
+.fn-preview-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(5,18,39,.58), rgba(8,30,63,.08) 48%, rgba(4,15,34,.62)), linear-gradient(180deg, rgba(6,18,39,.04), rgba(4,12,29,.6));
+}
+.fn-preview-nav,
+.fn-preview-foot {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 24px;
+  min-height: 52px;
+  background: rgba(4,17,42,.62);
+  border-bottom: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(16px);
+}
+.fn-preview-nav { top: 0; }
+.fn-preview-foot { bottom: 0; border-top: 1px solid rgba(255,255,255,.14); border-bottom: 0; min-height: 48px; }
+.fn-preview-tabs { display: flex; height: 52px; align-items: stretch; gap: 2px; }
+.fn-preview-tabs span { display: grid; place-items: center; padding: 0 14px; color: rgba(255,255,255,.66); font-family: var(--display-heavy); font-size: 10px; }
+.fn-preview-tabs .active { color: #0a1421; background: #f7df3f; transform: skewX(-6deg); }
+.fn-preview-body { position: absolute; z-index: 8; inset: 52px 0 48px; display: grid; grid-template-columns: minmax(0,1fr) minmax(300px, 380px); align-items: end; gap: 34px; padding: 38px; }
+.fn-preview-player { align-self: center; max-width: 560px; text-shadow: 0 14px 36px rgba(0,0,0,.5); }
+.fn-preview-player h2 { margin: 8px 0 4px; font-family: var(--display-heavy); font-size: clamp(62px, 8vw, 118px); line-height: .8; letter-spacing: -.07em; text-transform: uppercase; }
+.fn-preview-player p { margin: 0; color: rgba(255,255,255,.76); font-family: var(--mono); font-size: 10px; letter-spacing: .12em; }
+.fn-preview-card { position: relative; overflow: hidden; padding: 22px; border: 1px solid rgba(255,255,255,.32); background: linear-gradient(145deg, rgba(18,66,127,.74), rgba(6,28,66,.7)); box-shadow: 0 28px 80px rgba(0,0,0,.34); backdrop-filter: blur(22px); }
+.fn-preview-card h3 { margin: 6px 0 14px; font-family: var(--display-heavy); font-size: 34px; letter-spacing: -.04em; text-transform: uppercase; }
+.fn-preview-ready { display: grid; place-items: center; min-height: 52px; margin-top: 18px; color: #0b1218; background: #f7df3f; border: 2px solid rgba(255,255,255,.74); font-family: var(--display-heavy); font-size: 16px; letter-spacing: .05em; transform: skewX(-4deg); }
+.fn-preview-qr { width: min(190px, 100%); aspect-ratio: 1; margin: 12px auto; padding: 8px; background: #fff; }
+.fn-preview-qr img { width: 100%; height: 100%; object-fit: contain; }
+.fn-preview-log { display: grid; gap: 7px; margin-top: 14px; }
+.fn-preview-log div { display: flex; justify-content: space-between; gap: 16px; font-family: var(--mono); font-size: 9px; color: rgba(255,255,255,.63); }
+.fn-preview-log b { color: #fff; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .pz-fn-lobby { width: min(440px, 46vw); right: 3vw; }
+  .fn-preview-body { grid-template-columns: 1fr; align-items: center; padding: 28px; }
+  .fn-preview-card { width: min(420px, 100%); margin-left: auto; }
+}
+
+@media (max-width: 720px) {
+  .pz-fn-lobby { position: relative; right: auto; top: auto; width: calc(100% - 30px); margin: 22px auto; }
+  .pz-fn-tabs { overflow-x: auto; }
+  .pz-fn-tabs span, .pz-fn-tabs b { padding: 0 10px; }
+  .fn-preview-stage { min-height: 760px; }
+  .fn-preview-nav { padding: 0 14px; }
+  .fn-preview-tabs span { padding: 0 9px; font-size: 8px; }
+  .fn-preview-body { inset-top: 52px; padding: 20px 16px 66px; }
+  .fn-preview-player h2 { font-size: 64px; }
+  .fn-preview-foot { padding: 0 14px; font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is([data-pz-interactive], .btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, .build-card, .download-row, .panel):hover { transform: none; }
+  :is(.btn, .download-action:not(.disabled), .nav-links a, .tv-tabs button, [data-pz-interactive][href]):hover::before,
+  body[data-route="builds"] .build-card:hover::before { animation: none; }
+  .pz-fn-mode::before { animation: none; }
+}
