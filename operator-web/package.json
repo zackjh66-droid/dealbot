@@ -1,8 +1,8 @@
 {
   "name": "operator-web",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
-  "scripts": {"start": "node server-v2.js"},
+  "scripts": {"start": "node server-v3.js"},
   "engines": {"node": ">=20"}
 }
