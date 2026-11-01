@@ -13,7 +13,10 @@ src=src.replace(
 src=src.replace('const css=fs.readFileSync(', 'let css=fs.readFileSync(')
 
 const oldJs="const js=fs.readFileSync(path.join(dir,'site-v6.js'),'utf8'),icons=fs.readFileSync(path.join(dir,'operator-icons-v2.svg'),'utf8')"
-const newJs=`css += '\n.ownerBox{display:none!important}.providerLogo{background:transparent!important}.connector .connectBtn:disabled{opacity:.55;cursor:not-allowed}'\nconst js=fs.readFileSync(path.join(dir,'site-v6.js'),'utf8')\n  .replace(\"b.textContent='Owner setup required';st.textContent='Not configured'\",\"b.textContent='Unavailable';st.textContent='Provider registration pending'\")\n  .replace(\"d.error||'Provider app is not configured yet.'\",\"d.error||'This provider connection is not available yet.'\"),icons=fs.readFileSync(path.join(dir,'operator-icons-v2.svg'),'utf8')`
+const newJs=`css += '.ownerBox{display:none!important}.providerLogo{background:transparent!important}.connector .connectBtn:disabled{opacity:.55;cursor:not-allowed}'
+const js=fs.readFileSync(path.join(dir,'site-v6.js'),'utf8')
+  .replace(\"b.textContent='Owner setup required';st.textContent='Not configured'\",\"b.textContent='Unavailable';st.textContent='Provider registration pending'\")
+  .replace(\"d.error||'Provider app is not configured yet.'\",\"d.error||'This provider connection is not available yet.'\"),icons=fs.readFileSync(path.join(dir,'operator-icons-v2.svg'),'utf8')`
 src=src.replace(oldJs,newJs)
 
 src=src.replaceAll('/operator-logo-v6.png?v=6','/operator-logo-v7.png?v=7')
