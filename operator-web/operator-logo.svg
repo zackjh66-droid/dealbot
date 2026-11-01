@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OPERATOR logo">
+  <rect width="512" height="512" rx="112" fill="#07090a"/>
+  <path d="M152 86h208l66 66v208l-66 66H152l-66-66V152z" fill="none" stroke="#F7F8F6" stroke-width="34" stroke-linejoin="round"/>
+  <path d="M330 106 188 406" fill="none" stroke="#B9FF3F" stroke-width="42" stroke-linecap="round"/>
+  <path d="M128 274h108" stroke="#F7F8F6" stroke-width="34" stroke-linecap="round"/>
+  <path d="M276 238h108" stroke="#F7F8F6" stroke-width="34" stroke-linecap="round"/>
+</svg>
