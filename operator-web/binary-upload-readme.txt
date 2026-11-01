@@ -1,0 +1,1 @@
+Binary upload uses Git data API.
