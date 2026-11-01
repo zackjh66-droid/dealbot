@@ -1,13 +1,16 @@
-import asyncio, json, os, subprocess, tempfile, time
+import asyncio, json, os, time
 from urllib.parse import quote_plus
+
+import duckdb
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
-app = FastAPI(title="OPERATOR Discovery", version="1.0")
+app = FastAPI(title="OPERATOR Discovery", version="2.0")
 SECRET = os.environ.get("OPERATOR_DISCOVERY_SECRET", "")
+RELEASE = "2026-10-21.0"
+PARQUET = f"s3://overturemaps-us-west-2/release/{RELEASE}/theme=places/type=place/*"
 CACHE = {}
 
-# Small rotating areas keep scans fast while still covering the UK over repeated runs.
 REGIONS = [
     ("London", (-0.28, 51.43, 0.10, 51.60)),
     ("Birmingham", (-2.05, 52.39, -1.72, 52.57)),
@@ -30,14 +33,14 @@ REGIONS = [
 ]
 
 TRADE_TERMS = [
-    "plumb", "electric", "roof", "carpent", "joiner", "locksmith", "landscap",
-    "builder", "construction", "heating", "hvac", "plaster", "paint", "decorat",
-    "tiler", "drain", "glazing", "window", "scaffold", "handyman", "bathroom",
-    "kitchen", "garage door"
+    "plumb", "electric", "roof", "carpent", "joiner", "landscap", "builder",
+    "construction", "heating", "hvac", "plaster", "paint", "decorat", "tiler",
+    "drain", "glazing", "window", "scaffold", "handyman", "bathroom", "kitchen"
 ]
 FOOD_TERMS = ["restaurant", "cafe", "takeaway", "pub", "bar", "bakery", "catering"]
 BEAUTY_TERMS = ["salon", "hair", "barber", "beauty", "nail", "spa"]
 FITNESS_TERMS = ["gym", "fitness", "personal trainer", "martial arts", "yoga"]
+
 
 class SearchBody(BaseModel):
     service: str = ""
@@ -52,7 +55,21 @@ def _list(v):
         return []
     if isinstance(v, list):
         return v
+    if isinstance(v, tuple):
+        return list(v)
     return [v]
+
+
+def _flatten(v):
+    out = []
+    for x in _list(v):
+        if isinstance(x, str):
+            out.append(x)
+        elif isinstance(x, dict):
+            for value in x.values():
+                if isinstance(value, str):
+                    out.append(value)
+    return [x for x in out if x]
 
 
 def _target_terms(ideal: str):
@@ -65,33 +82,48 @@ def _target_terms(ideal: str):
         return BEAUTY_TERMS
     if any(x in t for x in ["gym", "fitness", "trainer", "yoga"]):
         return FITNESS_TERMS
-    # Broad local-business fallback.
     return TRADE_TERMS + FOOD_TERMS + BEAUTY_TERMS + FITNESS_TERMS
 
 
-def _download_region(region_index: int):
+def _query_region(region_index: int):
     name, bbox = REGIONS[region_index % len(REGIONS)]
-    key = (region_index % len(REGIONS),)
+    key = region_index % len(REGIONS)
     hit = CACHE.get(key)
     if hit and time.time() - hit[0] < 1800:
         return name, hit[1]
 
-    with tempfile.NamedTemporaryFile(suffix=".geojson", delete=False) as f:
-        out = f.name
+    west, south, east, north = bbox
+    con = duckdb.connect(database=":memory:")
     try:
-        bbox_s = ",".join(str(x) for x in bbox)
-        cmd = ["overturemaps", "download", f"--bbox={bbox_s}", "-f", "geojson", "--type=place", "-o", out]
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=50)
-        with open(out, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        feats = data.get("features", []) if isinstance(data, dict) else []
+        con.execute("INSTALL httpfs")
+        con.execute("LOAD httpfs")
+        con.execute("SET s3_region='us-west-2'")
+        con.execute("SET enable_object_cache=true")
+        rows = con.execute(
+            f"""
+            SELECT
+              id,
+              names.primary AS name,
+              basic_category,
+              taxonomy,
+              websites,
+              socials,
+              emails,
+              phones,
+              addresses
+            FROM read_parquet('{PARQUET}', hive_partitioning=1)
+            WHERE bbox.xmin BETWEEN ? AND ?
+              AND bbox.ymin BETWEEN ? AND ?
+            LIMIT 7000
+            """,
+            [west, east, south, north],
+        ).fetchall()
+        cols = [d[0] for d in con.description]
+        feats = [dict(zip(cols, row)) for row in rows]
         CACHE[key] = (time.time(), feats)
         return name, feats
     finally:
-        try:
-            os.remove(out)
-        except OSError:
-            pass
+        con.close()
 
 
 def _address(props):
@@ -103,32 +135,23 @@ def _address(props):
     return ", ".join(str(p) for p in parts if p)
 
 
-def _name(props):
-    n = props.get("names") or {}
-    if isinstance(n, dict):
-        return n.get("primary") or n.get("common") or "Business"
-    return "Business"
-
-
 def _filter(feats, region_name, body: SearchBody):
     terms = _target_terms(body.ideal_customer)
     web_service = any(x in (body.service or "").lower() for x in ["web", "website", "shopify", "wordpress", "ecommerce", "landing page"])
     out = []
-    for f in feats:
-        props = f.get("properties") or {}
-        name = str(_name(props)).strip()
-        if not name or name.lower() == "business":
+    for props in feats:
+        name = str(props.get("name") or "").strip()
+        if not name:
             continue
         taxonomy = json.dumps(props.get("taxonomy") or {}, ensure_ascii=False).lower()
         basic = str(props.get("basic_category") or "").lower()
         hay = f"{name.lower()} {basic} {taxonomy}"
-        matched = [x for x in terms if x in hay]
-        if not matched:
+        if not any(x in hay for x in terms):
             continue
-        websites = [str(x) for x in _list(props.get("websites")) if x]
-        socials = [str(x) for x in _list(props.get("socials")) if x]
-        emails = [str(x) for x in _list(props.get("emails")) if x]
-        phones = [str(x) for x in _list(props.get("phones")) if x]
+        websites = _flatten(props.get("websites"))
+        socials = _flatten(props.get("socials"))
+        emails = _flatten(props.get("emails"))
+        phones = _flatten(props.get("phones"))
         if web_service and websites:
             continue
         if not (phones or emails or socials):
@@ -153,7 +176,7 @@ def _filter(feats, region_name, body: SearchBody):
         summary = f"{name} — {basic.replace('_',' ') or 'local business'} in {addr or region_name}. " + "; ".join(evidence) + "."
         out.append({
             "source": "Overture Places",
-            "source_external_id": str(props.get("id") or f.get("id") or q),
+            "source_external_id": str(props.get("id") or q),
             "display_name": name,
             "summary": summary,
             "source_url": f"https://www.google.com/search?q={q}",
@@ -163,9 +186,6 @@ def _filter(feats, region_name, body: SearchBody):
             "competition": "low",
             "region": region_name,
             "category": basic,
-            "phone": phones[0] if phones else None,
-            "email": emails[0] if emails else None,
-            "social": socials[0] if socials else None,
             "need_signal": "no_website_listed" if web_service and not websites else "target_match",
         })
     out.sort(key=lambda x: (-x["fit_score"], x["display_name"].lower()))
@@ -174,7 +194,7 @@ def _filter(feats, region_name, body: SearchBody):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "regions": len(REGIONS), "source": "Overture Places"}
+    return {"ok": True, "regions": len(REGIONS), "source": "Overture Places", "release": RELEASE, "engine": "duckdb"}
 
 
 @app.post("/search")
@@ -183,19 +203,19 @@ async def search(body: SearchBody, x_operator_key: str | None = Header(default=N
         raise HTTPException(status_code=401, detail="unauthorized")
     region_index = body.cursor % len(REGIONS)
     try:
-        region_name, feats = await asyncio.to_thread(_download_region, region_index)
+        region_name, feats = await asyncio.wait_for(asyncio.to_thread(_query_region, region_index), timeout=45)
         results = _filter(feats, region_name, body)
-        # If one patch is sparse, automatically try the next patch too.
+        checked = [region_name]
         if len(results) < 5:
-            n2, f2 = await asyncio.to_thread(_download_region, (region_index + 1) % len(REGIONS))
+            n2, f2 = await asyncio.wait_for(asyncio.to_thread(_query_region, (region_index + 1) % len(REGIONS)), timeout=45)
+            checked.append(n2)
             results += _filter(f2, n2, body)
             dedup = {}
             for x in results:
                 dedup[x["source_external_id"]] = x
             results = sorted(dedup.values(), key=lambda x: -x["fit_score"])[: max(1, min(body.limit, 40))]
-        return {"ok": True, "results": results, "regions_checked": 2 if len(results) < 5 else 1, "cursor_next": (region_index + 1) % len(REGIONS)}
-    except subprocess.TimeoutExpired:
+        return {"ok": True, "results": results, "regions_checked": checked, "cursor_next": (region_index + len(checked)) % len(REGIONS)}
+    except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Overture query timed out")
-    except subprocess.CalledProcessError as e:
-        detail = (e.stderr or b"").decode("utf-8", "ignore")[-800:]
-        raise HTTPException(status_code=502, detail=detail or "Overture query failed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:500])
