@@ -5,7 +5,7 @@ import duckdb
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
-app = FastAPI(title="OPERATOR Discovery", version="2.1")
+app = FastAPI(title="OPERATOR Discovery", version="2.2")
 SECRET = os.environ.get("OPERATOR_DISCOVERY_SECRET", "")
 RELEASE = "2026-10-21.0"
 PARQUET = f"s3://overturemaps-us-west-2/release/{RELEASE}/theme=places/type=place/*"
@@ -34,8 +34,8 @@ REGIONS = [
 
 TRADE_TERMS = [
     "plumb", "electric", "roof", "carpent", "joiner", "landscap", "builder",
-    "construction", "heating", "hvac", "plaster", "decorat", "tiler",
-    "drain", "glazing", "window", "scaffold", "handyman", "bathroom", "kitchen"
+    "construction", "contractor", "heating", "hvac", "plaster", "decorat", "tiler",
+    "drain", "glaz", "window", "scaffold", "handyman", "bathroom", "locksmith"
 ]
 FOOD_TERMS = ["restaurant", "cafe", "takeaway", "pub", "bar", "bakery", "catering"]
 BEAUTY_TERMS = ["salon", "hair", "barber", "beauty", "nail", "spa"]
@@ -114,8 +114,11 @@ def _matches_target(name,basic,taxonomy,ideal):
     kind=_target_type(ideal)
     n=name.lower(); b=basic.lower(); t=taxonomy.lower(); hay=f"{n} {b} {t}"
     if kind=="trades":
-        if b in {"home_service","building_or_construction_service"}: return True
-        return any(x in n for x in TRADE_TERMS) or any(x in b for x in ["plumb","electric","roof","construction","contractor","carpent","joiner","landscap","heating"])
+        if b=="building_or_construction_service": return True
+        # Generic home-service labels are too broad: require a recognisable trade signal.
+        if any(x in n for x in TRADE_TERMS): return True
+        if any(x in b for x in ["plumb","electric","roof","construction","contractor","carpent","joiner","landscap","heating","locksmith"]): return True
+        return False
     if kind=="food": return any(x in f"{n} {b}" for x in FOOD_TERMS)
     if kind=="beauty": return any(x in f"{n} {b}" for x in BEAUTY_TERMS)
     if kind=="fitness": return any(x in f"{n} {b}" for x in FITNESS_TERMS)
@@ -152,7 +155,7 @@ def _filter(feats,region_name,body:SearchBody):
 
 @app.get("/health")
 def health():
-    return {"ok":True,"regions":len(REGIONS),"source":"Overture Places","release":RELEASE,"engine":"duckdb","version":"2.1"}
+    return {"ok":True,"regions":len(REGIONS),"source":"Overture Places","release":RELEASE,"engine":"duckdb","version":"2.2"}
 
 @app.post("/search")
 async def search(body:SearchBody,x_operator_key:str|None=Header(default=None)):
